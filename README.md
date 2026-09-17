@@ -23,6 +23,13 @@ Below is a 2d, run-and-gun, Metroidvania game for PC where the player character 
 ### Procedural Generation
 
 Segments of levels between checkpoints will be procedurally generated. This includes the terrain, enemy locations, and lootable items. The terrain will be appropriate to navigate given our character's physics.
+
+Implementation details:
+* First, we will design and create handcrafted room templates. 
+* Then, we will use a randomized backtracking algorithm to generate levels between checkpoints
+* The algorithm will attempt to build a main route, backtracking and pruning branches when a room placement prevents a valid path. 
+* Eventually, we will add optional branches, enemies, and resources for variety. 
+* Finally, each section will be checked to ensure that the path is actually traversable and that players can reach the next checkpoint.
     
 ### Advanced AI
 
