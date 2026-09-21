@@ -48,11 +48,13 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     let images = vec![
         asset_server.load("NicholasMyers.png"),
         asset_server.load("NickCheddar.png"),
+        asset_server.load("TrystinDeRemer.png"),
     ];
 
     let texts = vec![
         "Nicholas 'Merlin' Myers".to_string(),
         "Nick Cheddar".to_string(),
+        "Trystin DeRemer".to_string(),
     ];
 
     commands.spawn((
