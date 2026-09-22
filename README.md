@@ -25,15 +25,26 @@ Below is a 2d, run-and-gun, Metroidvania game for PC where the player character 
 Segments of levels between checkpoints will be procedurally generated. This includes the terrain, enemy locations, and lootable items. The terrain will be appropriate to navigate given our character's physics.
 
 Implementation details:
-* First, we will design and create handcrafted room templates. 
-* Then, we will use a randomized backtracking algorithm to generate levels between checkpoints
-* The algorithm will attempt to build a main route, backtracking and pruning branches when a room placement prevents a valid path. 
-* Eventually, we will add optional branches, enemies, and resources for variety. 
-* Finally, each section will be checked to ensure that the path is actually traversable and that players can reach the next checkpoint.
+* We will use randomized depth-first search with backtracking to generate paths between rooms in each section between checkpoints.
+* Platforms and gaps within each room will also be procedurally generated, using player movement limits to constrain placement.
+* When a layout cannot connect the required entrances and exits, the generator will backtrack and try another arrangement.
+* Once a valid main route exists, we will add optional branches, enemies, and resources for variety.
+* Each completed section will be checked for traversability to ensure the player can reach the next checkpoint.
     
 ### Advanced AI
 
-Each of our enemies will have an advanced, unique AI that will determine how they interact with the player. Each enemy will have a unique patrol, attack, and chase pathfinding abilities, as well as being able to make descisions to change their state based on their environemt. they will also be able to pathfind around obstacles.
+- **Behavior states:** A unique finite state machine will be used for each enemy type, defining how it transitions between states. Enemies will generally have four states: Idle, Patrol, Chase, and Attack.
+- **Sound detection:** Enemies are blind and rely on sound events created when the player walks, jumps, or shoots. Hearing a sound creates a “last heard location” at the source of that sound.
+  - **Proposed sound falloff:** Dijkstra’s algorithm will propagate sound through traversable space. Sound intensity will decrease with distance traveled, and enemies will react if the sound is loud enough for them to hear.
+- **Chase state:** Triggered by hearing a sound. Enemies will pathfind to the last heard location whenever it updates. A* pathfinding will be adapted for a platforming environment where jumping or falling alters the cost.
+- **Patrol state:** Triggered when an enemy reaches the last heard location. The enemy will wander randomly around that spot.
+- **Attack state:** Melee enemies will attack when they collide with the player or are within close range. For ranged enemies, we propose triggering attacks within firing range and aiming toward the last heard location.
+- **Enemy types:**
+  - **Gerald:** Walks around and goes after the player to bite them within close range. The player can stomp on or shoot Gerald.
+  - **Amoog:** Loops between trying to shoot at the last heard location and chasing it.
+  - **Fly Trap:** Does not move and shoots fireballs in a direction determined by its placement. It alternates between Idle and Attack at regular intervals, with no pathfinding. The player cannot kill it.
+  - **Hive Mind:** A swarm attacks the player within a certain range, dealing small amounts of damage at regular intervals through contact. If the stationary hive is destroyed, the swarm disappears.
+  - **Boss:** Walks around near the player before striking with a melee attack that has a wind-up. The player can shoot the Boss.
 
 ## Midterm Goals
 
