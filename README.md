@@ -2,53 +2,64 @@
 
 by The Knights of the Round Table
 
-## Team Members
-* Advanced Topic Subteam 1: Procedural Generation
-	* jwb141@pitt.edu: Jake Biondolillo
-	* fis14@pitt.edu: Finn Snyder
-	* agm121@pitt.edu: Aiden McCoy
-	* ndc45@pitt.edu: Nick Cheddar
-
-* Advanced Topic Subteam 2: Advanced AI
-	* cts58@pitt.edu: Caleb Sarmiento
-	* tcd27@pitt.edu: Trystin DeRemer
-	* nrm97@pitt.edu : Nicholas Myers
-
 ## Game Description
 
-Below is a 2d, run-and-gun, Metroidvania game for PC where the player character has to descend deeper into the Below to reach an elevator to get back to the surface.
+Below is a 2d, run-and-gun, Metroidvania game for PC where the player character must descend deeper into the Below, fighting enemies along the way, to reach an elevator to get back to the surface.
 
-## Advanced Topic Description
+## Team Members
 
-### Procedural Generation
+**Advanced Topic Subteam 1: Procedural Generation**
+* Jake Biondolillo: jwb141@pitt.edu
+* Finn Snyder:      fis14@pitt.edu
+* Aiden McCoy:      agm121@pitt.edu
+* Nick Cheddar:     ndc45@pitt.edu
 
-Segments of levels between checkpoints will be procedurally generated. This includes the terrain, enemy locations, and lootable items. The terrain will be appropriate to navigate given our character's physics.
+**Advanced Topic Subteam 2: Advanced AI**
+* Caleb Sarmiento: cts58@pitt.edu
+* Trystin DeRemer: tcd27@pitt.edu
+* Nicholas Myers:  nrm97@pitt.edu
+
+## Advanced Procedural Generation
+
+Segments of levels between checkpoints will be procedurally generated. This includes platforms, enemy locations, and collectable items.
 
 Implementation details:
-* We will use randomized depth-first search with backtracking to generate paths between rooms in each section between checkpoints.
-* Platforms and gaps within each room will also be procedurally generated, using player movement limits to constrain placement.
-* When a layout cannot connect the required entrances and exits, the generator will backtrack and try another arrangement.
-* Once a valid main route exists, we will add optional branches, enemies, and resources for variety.
-* Each completed section will be checked for traversability to ensure the player can reach the next checkpoint.
-    
-### Advanced AI
+  * Generate 12 "rooms" of random size (between 20 and 200 tiles in both dimensions) placed randomly in a 2D plane such that they do not overlap
+  * Compute a [Delaunay triangulation](https://en.wikipedia.org/wiki/Delaunay_triangulation) of the centers of all of those rooms
+  * Find a minimum spanning tree from the resulting graph
+  * From the set of edges from the triangulation that were not in the MST, add 20% back to the MST to form the basic connection of the dungeon
+  * Turn each edge of the resulting graph into a "hallway" (if the rooms overlap in x, draw a horizontal line between them, if they overlap in y, draw a vertical line, if they overlap in neither, create an L connector to join them)
+  * Randomly generate 20 additional, smaller rooms (5-50 tiles per dimension) that overlap with the hallways to add additional exploration options
+  * Randomly populate all rooms.
+    * Platforms, obstacles, enemies, etc.
+    * Different approaches will be used for bigger rooms and smaller hallway rooms.
 
-- **Behavior states:** A unique finite state machine will be used for each enemy type, defining how it transitions between states. Enemies will generally have four states: Idle, Patrol, Chase, and Attack.
-- **Sound detection:** Enemies are blind and rely on sound events created when the player walks, jumps, or shoots. Hearing a sound creates a “last heard location” at the source of that sound.
-  - **Proposed sound falloff:** Dijkstra’s algorithm will propagate sound through traversable space. Sound intensity will decrease with distance traveled, and enemies will react if the sound is loud enough for them to hear.
-- **Chase state:** Triggered by hearing a sound. Enemies will pathfind to the last heard location whenever it updates. A* pathfinding will be adapted for a platforming environment where jumping or falling alters the cost.
-- **Patrol state:** Triggered when an enemy reaches the last heard location. The enemy will wander randomly around that spot.
-- **Attack state:** Melee enemies will attack when they collide with the player or are within close range. For ranged enemies, we propose triggering attacks within firing range and aiming toward the last heard location.
-- **Enemy types:**
-  - **Gerald:** Walks around and goes after the player to bite them within close range. The player can stomp on or shoot Gerald.
-  - **Amoog:** Loops between trying to shoot at the last heard location and chasing it.
-  - **Fly Trap:** Does not move and shoots fireballs in a direction determined by its placement. It alternates between Idle and Attack at regular intervals, with no pathfinding. The player cannot kill it.
-  - **Hive Mind:** A swarm attacks the player within a certain range, dealing small amounts of damage at regular intervals through contact. If the stationary hive is destroyed, the swarm disappears.
-  - **Boss:** Walks around near the player before striking with a melee attack that has a wind-up. The player can shoot the Boss.
+## Advanced AI
+
+Each enemy will have their own behavior according to what unique abilities (attacks) they have.
+* Decision trees will model behavior state transitions.
+* Gerald, Amoog, and Hive Mind enemies will have unique behavior tree models using decision trees.
+
+Enemies are blind and rely on sound events created when the player walks, jumps, or shoots. Hearing a sound creates a “last heard location” at the source of that sound. Each enemy will have their own unique response, but for a general example:
+* Enemies that are in a certain range will automatically know the location of the "last heard location" object and pursue it, given their decision tree allows it.
+* If they reach the "last heard location" object and don't collide with the player, they will patrol in that area randomly for some interval.
+  * If they collide with the player while traversing to the "last heard location" object, then they attack.
+
+This would be what the Gerald enemy does, but for an enemy like the Amoog, they will not pursue the "last heard location" object and instead shoot in the direction of it. See the table below for futher details on enemies and their general behavior.
+
+## Enemy Overview
+
+| Name      | Health  | Behavior                                                                                                                                     | Ability                                                                                                           | Player Interaction      |
+|-----------|---------|----------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------|-------------------------|
+| Gerald    | Low     | Gerald patrols and chases the player to attack them.                                                                                         | Deal damage by biting the player.                                                                                 | Stomp or shoot to kill. |
+| Amoog     | Medium  | Amoog patrols and attacks by shooting at the player when in range. It will chase if the player exits the range while it is shooting at them. | Deal damage by shooting fireballs at the player.                                                                  | Shoot to kill.          |
+| Fly Trap  | High    | Fly Trap is immobile. It shoots fireballs in the direction it's facing.                                                                      | Deal damage by shooting fireballs in one direction at a regular interval.                                         | Cannot kill.            |
+| Hive Mind | Medium  | A swarm patrols around the hive mind. When the player is in range, the swarm chases and attacks the player.                                  | Deal accumulative damage when swarming the player. If the player kills the stationary hive, the swarm disappears. | Shoot to kill.          |
+| Boss      | Highest | **_TBD_**                                                                                                                                    | **_TBD_**                                                                                                         |                         |
 
 ## Midterm Goals
 
-* Develop the player's character to be moving and attacking with comfortable controls.
+* Develop the player's character to be moving and attacking with controls that are intuitive to learn and aren't difficult to remember.
 * Complete one enemy, with a simple state condition, along with the outlines for the rest of the enemies and how they will work.
 * Set up checkpoints and statically-generated terrain. Begin developing infastructure for procedural generation.
 
