@@ -2,75 +2,104 @@
 
 by The Knights of the Round Table
 
-## Team Members
-* Advanced Topic Subteam 1: Procedural Generation
-	* jwb141@pitt.edu: Jake Biondolillo
-	* fis14@pitt.edu: Finn Snyder
-	* agm121@pitt.edu: Aiden McCoy
-	* ndc45@pitt.edu: Nick Cheddar
-
-* Advanced Topic Subteam 2: Advanced AI
-	* cts58@pitt.edu: Caleb Sarmiento
-	* tcd27@pitt.edu: Trystin DeRemer
-	* nrm97@pitt.edu : Nicholas Myers
-
 ## Game Description
 
-Below is a 2d, run-and-gun, Metroidvania game for PC where the player character has to descend deeper into the Below to reach an elevator to get back to the surface.
+Below is a 2D, run-and-gun Metroidvania game for PC where the player character must descend deeper into the Below, fighting enemies along the way, to reach an elevator to get back to the surface.
+
+## Team Members
+
+**Advanced Topic Subteam 1: Procedural Generation**
+* Jake Biondolillo: jwb141@pitt.edu
+* Finn Snyder: fis14@pitt.edu
+* Aiden McCoy: agm121@pitt.edu
+* Nick Cheddar: ndc45@pitt.edu
+
+**Advanced Topic Subteam 2: Advanced AI**
+* Caleb Sarmiento: cts58@pitt.edu
+* Trystin DeRemer: tcd27@pitt.edu
+* Nicholas Myers: nrm97@pitt.edu
 
 ## Advanced Topic Description
 
 ### Procedural Generation
 
-Segments of levels between checkpoints will be procedurally generated. This includes the terrain, enemy locations, and lootable items. The terrain will be appropriate to navigate given our character's physics. 
+Segments of levels between checkpoints will be procedurally generated. This includes the terrain, platforms, enemy locations, and lootable items. The terrain will be appropriate to navigate given our character's physics.
 
-We will generate a dozen large rooms between 20 and 200 tiles long/tall, and use Delaunay Triangulation to find the center of each room. Then, after finding the minumum spanning tree of each graph, turn each edge into a hallway, connecting all of the rooms. From here, we will generate an additonal 20 rooms, between 5-50 tiles in dimention, and decorate them with loot and enemies. certain weapons and power-ups will only generate in rooms of certain sizes
-    
+Implementation details:
+* Generate 12 "rooms" of random size (between 20 and 200 tiles in both dimensions) placed randomly in a 2D plane such that they do not overlap.
+* Compute a [Delaunay triangulation](https://en.wikipedia.org/wiki/Delaunay_triangulation) of the centers of all of those rooms.
+* Find a minimum spanning tree from the resulting graph.
+* From the set of edges from the triangulation that were not in the MST, add 20% back to the MST to form the basic connection of the dungeon.
+* Turn each edge of the resulting graph into a "hallway" (if the rooms overlap in x, draw a horizontal line between them; if they overlap in y, draw a vertical line; if they overlap in neither, create an L connector to join them).
+* Randomly generate 20 additional, smaller rooms (5-50 tiles per dimension) that overlap with the hallways to add additional exploration options.
+* Randomly populate all rooms.
+  * Platforms, obstacles, enemies, loot, etc.
+  * Platforms and gaps will be placed using the player's movement limits to constrain placement.
+  * Different approaches will be used for bigger rooms and smaller hallway rooms. Certain weapons and power-ups will only generate in rooms of certain sizes.
+* Each completed section will be checked for traversability to ensure the player can reach the next checkpoint.
+
 ### Advanced AI
 
-Each of our enemies will have an advanced, unique AI that will determine how they interact with the player. Each enemy will have a unique patrol, attack, and chase pathfinding abilities
+Each enemy will have its own behavior according to the unique abilities (attacks) it has, with its own patrol, chase, and attack logic.
 
-Three of our enemies-- Amoog, Gerald, and Hive Mind-- will have unique decision trees, and unique methods for pathfinding and attacking the player. A full description of each can be found in the final rubric section.
+* **Behavior states:** Each enemy type will have a unique finite state machine defining how it transitions between states. Enemies will generally have four states: Idle, Patrol, Chase, and Attack. Gerald, Amoog, and Hive Mind will each use a unique decision tree to model their state transitions.
+* **Sound detection:** Enemies are blind and rely on sound events created when the player walks, jumps, or shoots. Hearing a sound creates a "last heard location" at the source of that sound.
+  * **Proposed sound falloff:** Dijkstra's algorithm will propagate sound through traversable space. Sound intensity will decrease with distance traveled, and enemies will react if the sound is loud enough for them to hear.
+* **Chase state:** Triggered by hearing a sound. Enemies will pathfind to the last heard location whenever it updates. A* pathfinding will be adapted for a platforming environment where jumping or falling alters the cost.
+* **Patrol state:** Triggered when an enemy reaches the last heard location without colliding with the player. The enemy will wander randomly around that spot for some interval.
+* **Attack state:** Melee enemies will attack when they collide with the player or are within close range. For ranged enemies, we propose triggering attacks within firing range and aiming toward the last heard location.
+
+See the table below for further details on each enemy's general behavior, and the Final Goals rubric for a full description of the Gerald, Amoog, and Hive Mind decision trees.
+
+## Enemy Overview
+
+| Name | Health | Behavior | Ability | Player Interaction |
+|------|--------|----------|---------|--------------------|
+| Gerald | Low | Gerald patrols and chases the player to attack them. | Deal damage by biting the player. | Stomp or shoot to kill. |
+| Amoog | Medium | Amoog patrols and attacks by shooting at the player when in range. It will chase if the player exits the range while it is shooting at them. | Deal damage by shooting fireballs at the player. | Shoot to kill. |
+| Fly Trap | High | Fly Trap is immobile and alternates between Idle and Attack, with no pathfinding. It shoots fireballs in the direction it's facing. | Deal damage by shooting fireballs in one direction at a regular interval. | Cannot kill. |
+| Hive Mind | Medium | A swarm patrols around the hive mind. When the player is in range, the swarm chases and attacks the player. | Deal accumulative damage when swarming the player. If the player kills the stationary hive, the swarm disappears. | Shoot to kill. |
+| Boss | Highest | Walks around near the player before striking with a melee attack that has a wind-up. | Deal damage with a wind-up melee strike. | Shoot to kill. |
 
 ## Midterm Goals
 
-* Develop the player's character to be moving and attacking with comfortable controls. The player should be able to navigate the static environment at a fast pace, without being able to completely avoid enemies.
+* Develop the player's character to be moving and attacking with comfortable controls that are intuitive to learn and aren't difficult to remember. The player should be able to navigate the static environment at a fast pace, without being able to completely avoid enemies.
 * Complete one enemy, with a simple state condition, along with the outlines for the rest of the enemies and how they will work.
-	* fully design decision trees for all three enemies, prepare to implement
-* Set up checkpoints and statically-generated terrain. Begin developing infastructure for procedural generation.
+  * Fully design decision trees for all three enemies and prepare to implement them.
+* Set up checkpoints and statically-generated terrain. Begin developing infrastructure for procedural generation.
 
 ## Final Goals
 
-### Main Game (80%):
+### Main Game (80%)
 * 30%: Procedural generation using Delaunay triangulation
-	* 15%: Hallways generated, using the graph edges gained from Delaunay Triagnulation. 
-		* Generate 12 rooms between 20 and 200 tiles in both directions
-		* Compute Delaunay triangulation to find the center of each room, then find the minimum spanning tree for the result. Connect all nodes of the new graph
-		* Turn the edges of the graph into hallways, connecting them if they overlap in the x or y directions.
-	* 10%: 20 rooms generated per level, each connected to the main hallways. 
-	* 5%: Each room randomly generated with lootables and enemies.
-		* Lootables include light essence (to replenish health), and weapons/power-ups described in the stretch goals
-		* Different protocols for generating loot in larger rooms vs. smaller rooms.
+  * 15%: Hallways generated using the graph edges from the Delaunay triangulation
+    * Generate 12 rooms between 20 and 200 tiles in both directions.
+    * Compute the Delaunay triangulation of the room centers, then find the minimum spanning tree of the result. Connect all nodes of the new graph.
+    * Turn the edges of the graph into hallways, connecting them if they overlap in the x or y directions.
+  * 10%: 20 rooms generated per level, each connected to the main hallways.
+  * 5%: Each room randomly generated with lootables and enemies.
+    * Lootables include light essence (to replenish health), and the weapons/power-ups described below.
+    * Different protocols for generating loot in larger rooms vs. smaller rooms.
 * 26%: Advanced AI implementation
-	* 9%: Gerald
-		* Decision tree changes based on sound propagation. Has a short line of sight but strong hearing. Will chase the player if it hears it, will avoid attacking if light level is too high (either with the player or another light source). It will be more inclined to attack the player when it perceives that their health is low (i.e.: they have a low light level)
-	* 8%: Amoog
-		* Decision tree changes based on sight. Has a strong, far sight. Will try to keep its distance from the player, aiming its projectiles where it estimates the player would be (using player’s movement)
-	* 9%: Hive Mind
-		* Generates dozens of enemies at once, all have the same decision tree. Short line of sight, and poor hearing, but once one is in sight of the player, all others in the room are notified. If many are dying, will summon more from the central hive. Central hive has no decision tree but can be destroyed like a normal enemy, stopping the spawning of all enemies.
+  * 9%: Gerald
+    * Decision tree changes based on sound propagation. Has a short line of sight but strong hearing. Will chase the player if it hears them, and will avoid attacking if the light level is too high (either from the player or another light source). It will be more inclined to attack the player when it perceives that their health is low (i.e., they have a low light level).
+  * 8%: Amoog
+    * Decision tree changes based on sight. Has a strong, far sight. Will try to keep its distance from the player, aiming its projectiles where it estimates the player will be (using the player's movement).
+  * 9%: Hive Mind
+    * Generates dozens of enemies at once, all with the same decision tree. Short line of sight and poor hearing, but once one is in sight of the player, all others in the room are notified. If many are dying, it will summon more from the central hive. The central hive has no decision tree but can be destroyed like a normal enemy, stopping the spawning of all enemies.
 * 5%: Boss & intro level completed
-* 5%: Player movement and animations 
+* 5%: Player movement and animations
 * 5%: Health and damage system
 * 4%: Enemies
-	* 2%: Fly Trap
-	* %: Boss
+  * 2%: Fly Trap
+  * 2%: Boss
 * 5%: Power-ups
-	* 2.5%: The unmatched power of the sun. Will expel a beam of light that kills every enemy on the screen (won’t kill the boss, but will deplete at least a quarter of its health). Extremely rare, only found in small rooms.
-	* 2.5%: The unmatched power of darkness. Will cast a shadow around the player, decreasing their visibility to enemies. Effective against every enemy except Gerald, who will be more inclined to attack the player.
+  * 2.5%: The unmatched power of the sun. Will expel a beam of light that kills every enemy on the screen (won't kill the boss, but will deplete at least a quarter of its health). Extremely rare, only found in small rooms.
+  * 2.5%: The unmatched power of darkness. Will cast a shadow around the player, decreasing their visibility to enemies. Effective against every enemy except Gerald, who will be more inclined to attack the player.
 
-### Stretch Goals (20%):
-* 10%: Lootable Weapons
-	* 5%: The Big One - has a further range and a stronger beam of light than the default gun. Will consume more light from the player.
-	* 5%: The Little One - decreased damage and range, but will not deplete player’s light level.
+### Stretch Goals (20%)
+* 10%: Lootable Weapons (provide new abilities and cause enemies to react in different ways)
+  * 5%: The Big One - has a further range and a stronger beam of light than the default gun. Will consume more light from the player.
+  * 5%: The Little One - decreased damage and range, but will not deplete the player's light level.
 * 10%: Optics System
-	* Dynamically light the entire game. make the light level more strongly effect enemies (i.e. enemies could be damaged by ambient lighting)
+  * Dynamically light the entire game, with light sources casting shadows. Make the light level more strongly affect enemies (i.e., enemies could be damaged by ambient lighting).
