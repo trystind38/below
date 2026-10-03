@@ -30,10 +30,10 @@ Segments of levels between checkpoints will be procedurally generated. This incl
 * Find a minimum spanning tree from the resulting graph
 * From the set of edges from the triangulation that were not in the MST, add 20% back to the MST to form the basic connection of the dungeon
 * Turn each edge of the resulting graph into a "hallway" (if the rooms overlap in x, draw a horizontal line between them, if they overlap in y, draw a vertical line, if they overlap in neither, create an L connector to join them)
-  * Randomly generate 20 additional, smaller rooms (5-50 tiles per dimension) that overlap with the hallways to add additional exploration options
-  * Randomly populate all rooms.
-    * Platforms, obstacles, enemies, etc.
-    * Different approaches will be used for bigger rooms and smaller hallway rooms.
+* Randomly generate 20 additional, smaller rooms (5-50 tiles per dimension) that overlap with the hallways to add additional exploration options
+* Randomly populate all rooms.
+  * Platforms, obstacles, enemies, etc.
+  * Different approaches will be used for bigger rooms and smaller hallway rooms.
 
 ### Advanced AI
 
