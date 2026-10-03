@@ -25,8 +25,7 @@ Below is a 2D, run-and-gun Metroidvania game for PC where the player character m
 
 Segments of levels between checkpoints will be procedurally generated. This includes the terrain, platforms, enemy locations, and lootable items. The terrain will be appropriate to navigate given our character's physics.
 
-Implementation details:
-
+**Implementation details:**
 * Generate 12 "rooms" of random size (between 20 and 200 tiles in both dimensions) placed randomly in a 2D plane such that they do not overlap
 * Compute a [Delaunay triangulation](https://en.wikipedia.org/wiki/Delaunay_triangulation) of the centers of all of those rooms
 * Find a minimum spanning tree from the resulting graph
