@@ -3,6 +3,7 @@ use bevy::{prelude::*, window::PresentMode};
 const TITLE: &str = "bv02 Basic";
 const WIN_W: u32 = 1280;
 const WIN_H: u32 = 720;
+mod stats;
 
 fn main() {
     App::new()
