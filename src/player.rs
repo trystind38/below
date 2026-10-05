@@ -1,84 +1,195 @@
 use bevy::prelude::*;
 
 use crate::{
-    GameState, LEVEL_BOTTOM, LEVEL_LEFT, LEVEL_RIGHT, LEVEL_TOP, TILE_SIZE,
-    camera::CameraTarget, loading::despawn_with,
+    GameState, LEVEL_BOTTOM, LEVEL_LEFT, LEVEL_RIGHT, TILE_SIZE,
+    camera::CameraTarget,
+    level::Brick,
+    loading::{LoadingAssets, despawn_with},
+    stats::{Health, MoveSpeed, PLAYER_HEALTH, PLAYER_SPEED},
 };
 
-// PLACEHOLDER player: a 32x32 square that walks and jumps so the camera can be seen working.
-// To replace it, swap the sprite and movement for the real ones, and keep the `CameraTarget`
-// component on the player so the camera keeps following it.
-const PLAYER_SIZE: f32 = 32.;
-const PLAYER_SPEED: f32 = 500.;
-const JUMP_SPEED: f32 = 700.;
-const GRAVITY: f32 = 1800.;
+const GRAVITY: f32 = 2000.;
+const JUMP_SPEED: f32 = 800.;
+const MAX_FALL_SPEED: f32 = 1200.;
+const JUMP_BUFFER: f32 = 0.1;
+const FAST_FALL_MULT: f32 = 1.3;
+const AIR_ACCEL: f32 = 3000.;
 
-#[derive(Component)]
-pub struct Player;
+const FRAME_SIZE: u32 = 32;
+const WALK_FRAMES: usize = 4;
+const FRAME_TIME: f32 = 0.1;
+const SPRITE_SCALE: f32 = 2.;
+
+const PLAYER_SIZE: Vec2 = Vec2::new(40., 64.);
+
+const SKIN: f32 = 0.01;
 
 #[derive(Component, Default)]
-pub struct Velocity(Vec2);
+pub struct Player {
+    pub vel: Vec2,
+    pub grounded: bool,
+    jump_buffer: f32,
+}
+
+#[derive(Component, Deref, DerefMut)]
+struct AnimationTimer(Timer);
+
+#[derive(Resource)]
+struct PlayerSheet {
+    image: Handle<Image>,
+    layout: Handle<TextureAtlasLayout>,
+}
 
 pub struct PlayerPlugin;
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(OnEnter(GameState::Playing), spawn_player)
-            .add_systems(Update, move_player.run_if(in_state(GameState::Playing)))
+        app.add_systems(Startup, load_player)
+            .add_systems(OnEnter(GameState::Playing), spawn_player)
+            .add_systems(
+                Update,
+                (move_player, animate_player)
+                    .chain()
+                    .run_if(in_state(GameState::Playing)),
+            )
             .add_systems(OnExit(GameState::Playing), despawn_with::<Player>);
     }
 }
 
-fn spawn_player(mut commands: Commands) {
+fn load_player(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut layouts: ResMut<Assets<TextureAtlasLayout>>,
+    mut loading_assets: ResMut<LoadingAssets>,
+) {
+    let image: Handle<Image> = asset_server.load("player/player_full_walk.png");
+    loading_assets.0.push(image.clone().untyped());
+
+    let layout = layouts.add(TextureAtlasLayout::from_grid(
+        UVec2::splat(FRAME_SIZE),
+        WALK_FRAMES as u32,
+        1,
+        None,
+        None,
+    ));
+
+    commands.insert_resource(PlayerSheet { image, layout });
+}
+
+fn spawn_player(mut commands: Commands, sheet: Res<PlayerSheet>) {
     commands.spawn((
-        Sprite::from_color(Color::srgb(0.9, 0.2, 0.2), Vec2::splat(PLAYER_SIZE)),
+        Sprite::from_atlas_image(
+            sheet.image.clone(),
+            TextureAtlas {
+                layout: sheet.layout.clone(),
+                index: 0,
+            },
+        ),
         // Standing on the floor at the center of the first screen
-        Transform::from_xyz(0., LEVEL_BOTTOM + TILE_SIZE + PLAYER_SIZE / 2., 2.),
-        Player,
-        Velocity::default(),
+        Transform::from_xyz(0., LEVEL_BOTTOM + TILE_SIZE + PLAYER_SIZE.y / 2., 2.)
+            .with_scale(Vec3::splat(SPRITE_SCALE)),
+        Player::default(),
+        AnimationTimer(Timer::from_seconds(FRAME_TIME, TimerMode::Repeating)),
+        Health::new(PLAYER_HEALTH),
+        MoveSpeed(PLAYER_SPEED),
         CameraTarget,
     ));
 }
 
 fn move_player(
-    input: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
-    player: Single<(&mut Transform, &mut Velocity), With<Player>>,
+    keys: Res<ButtonInput<KeyCode>>,
+    player: Single<(&mut Transform, &mut Player, &MoveSpeed)>,
+    bricks: Query<&Transform, (With<Brick>, Without<Player>)>,
 ) {
-    let (mut transform, mut velocity) = player.into_inner();
-    let dt = time.delta_secs();
-
-    let half = PLAYER_SIZE / 2.;
-    let floor = LEVEL_BOTTOM + TILE_SIZE + half;
-    let ceiling = LEVEL_TOP - half;
-    let grounded = transform.translation.y <= floor;
+    let (mut tf, mut player, speed) = player.into_inner();
+    let dt = time.delta_secs().min(1. / 30.);
 
     let mut dir = 0.;
-    if input.any_pressed([KeyCode::KeyA, KeyCode::ArrowLeft]) {
+    if keys.any_pressed([KeyCode::KeyA, KeyCode::ArrowLeft]) {
         dir -= 1.;
     }
-    if input.any_pressed([KeyCode::KeyD, KeyCode::ArrowRight]) {
+    if keys.any_pressed([KeyCode::KeyD, KeyCode::ArrowRight]) {
         dir += 1.;
     }
-    velocity.0.x = dir * PLAYER_SPEED;
+    let target = dir * speed.0;
+    if player.grounded {
+        player.vel.x = target;
+    } else {
+        let max_change = AIR_ACCEL * dt;
+        player.vel.x += (target - player.vel.x).clamp(-max_change, max_change);
+    }
 
     // Single jump: only from the floor
-    if grounded && input.any_just_pressed([KeyCode::Space, KeyCode::KeyW, KeyCode::ArrowUp]) {
-        velocity.0.y = JUMP_SPEED;
+    if keys.any_just_pressed([KeyCode::Space, KeyCode::KeyW, KeyCode::ArrowUp]) {
+        player.jump_buffer = JUMP_BUFFER;
     }
-    velocity.0.y -= GRAVITY * dt;
+    if player.grounded && player.jump_buffer > 0. {
+        player.vel.y = JUMP_SPEED;
+        player.jump_buffer = 0.;
+    }
+    player.jump_buffer -= dt;
+    let fall_mult = if !player.grounded && keys.any_pressed([KeyCode::KeyS, KeyCode::ArrowDown]) {
+        FAST_FALL_MULT
+    } else {
+        1.
+    };
+    player.vel.y = (player.vel.y - GRAVITY * fall_mult * dt).max(-MAX_FALL_SPEED * fall_mult);
 
-    transform.translation += (velocity.0 * dt).extend(0.);
+    tf.translation.x += player.vel.x * dt;
+    for brick in &bricks {
+        let (pen, push) = penetration(tf.translation, brick.translation);
+        if pen.x > SKIN && pen.y > SKIN {
+            tf.translation.x += pen.x * push.x;
+            player.vel.x = 0.;
+        }
+    }
 
-    // Keep the player inside the level and land on the floor
-    transform.translation.x = transform
+    tf.translation.y += player.vel.y * dt;
+    player.grounded = false;
+    for brick in &bricks {
+        let (pen, push) = penetration(tf.translation, brick.translation);
+        if pen.x > SKIN && pen.y > SKIN {
+            tf.translation.y += pen.y * push.y;
+            player.grounded |= push.y > 0.;
+            player.vel.y = 0.;
+        }
+    }
+
+    // Keep the player inside the level
+    let half_w = PLAYER_SIZE.x / 2.;
+    tf.translation.x = tf
         .translation
         .x
-        .clamp(LEVEL_LEFT + half, LEVEL_RIGHT - half);
-    if transform.translation.y <= floor {
-        transform.translation.y = floor;
-        velocity.0.y = 0.;
-    } else if transform.translation.y >= ceiling {
-        transform.translation.y = ceiling;
-        velocity.0.y = velocity.0.y.min(0.);
+        .clamp(LEVEL_LEFT + half_w, LEVEL_RIGHT - half_w);
+}
+
+fn animate_player(
+    time: Res<Time>,
+    player: Single<(&Player, &mut Sprite, &mut AnimationTimer)>,
+) {
+    let (player, mut sprite, mut timer) = player.into_inner();
+
+    if player.vel.x != 0. {
+        sprite.flip_x = player.vel.x < 0.;
     }
+
+    let Some(atlas) = &mut sprite.texture_atlas else {
+        return;
+    };
+
+    if player.grounded && player.vel.x != 0. {
+        timer.tick(time.delta());
+        if timer.just_finished() {
+            atlas.index = (atlas.index + 1) % WALK_FRAMES;
+        }
+    } else {
+        atlas.index = 0;
+        timer.reset();
+    }
+}
+
+fn penetration(player: Vec3, tile: Vec3) -> (Vec2, Vec2) {
+    let d = (player - tile).truncate();
+    let pen = (PLAYER_SIZE + Vec2::splat(TILE_SIZE)) / 2. - d.abs();
+    (pen, d.signum())
 }
