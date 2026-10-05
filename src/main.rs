@@ -39,7 +39,8 @@ fn main() {
                 ..default()
             }),
             ..default()
-        }))
+            }).set(ImagePlugin::default_nearest())
+        )
         .insert_resource(ClearColor(Color::Srgba(Srgba::gray(0.25))))
         // Set initial state
         .init_state::<GameState>()
