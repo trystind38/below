@@ -47,7 +47,7 @@ impl Plugin for PlayerPlugin {
             .add_systems(OnEnter(GameState::Playing), spawn_player)
             .add_systems(
                 Update,
-                (move_player, animate_player)
+                (move_player, animate_player, damage_player, check_if_dead)
                     .chain()
                     .run_if(in_state(GameState::Playing)),
             )
@@ -192,4 +192,31 @@ fn penetration(player: Vec3, tile: Vec3) -> (Vec2, Vec2) {
     let d = (player - tile).truncate();
     let pen = (PLAYER_SIZE + Vec2::splat(TILE_SIZE)) / 2. - d.abs();
     (pen, d.signum())
+}
+
+fn damage_player(
+    health: Single<(&mut Health, &Player)>,
+    keys: Res<ButtonInput<KeyCode>>
+) {
+    let (mut health, _player) = health.into_inner();
+    if keys.any_just_pressed([KeyCode::KeyJ]) {
+        health.current = (health.current - 20.0).max(0.0);
+    }
+    if keys.any_just_pressed([KeyCode::KeyK]) {
+        health.current = health.max;
+    }
+    if keys.any_just_pressed([KeyCode::KeyL]) {
+        health.max = (health.max + 20.0).min(200.0);
+    }
+}
+
+fn check_if_dead(
+    player: Single<(&Health, &Player, &mut Sprite)>
+) {
+    let (health, _player, mut sprite) = player.into_inner();
+    if health.current == 0. {
+        sprite.color = Color::srgb(1., 0., 0.);
+    }else{
+        sprite.color = Color::srgb(1., 1., 1.);
+    }
 }
