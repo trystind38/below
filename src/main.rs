@@ -4,6 +4,7 @@ mod camera;
 mod level;
 mod loading;
 mod player;
+mod stats;
 
 const TITLE: &str = "Below - Level Demo";
 const WIN_W: f32 = 1280.;
