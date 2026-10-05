@@ -25,41 +25,38 @@ Below is a 2D, run-and-gun Metroidvania game for PC where the player character m
 
 Segments of levels between checkpoints will be procedurally generated. This includes the terrain, platforms, enemy locations, and lootable items. The terrain will be appropriate to navigate given our character's physics.
 
-Implementation details:
-* Generate 12 "rooms" of random size (between 20 and 200 tiles in both dimensions) placed randomly in a 2D plane such that they do not overlap.
-* Compute a [Delaunay triangulation](https://en.wikipedia.org/wiki/Delaunay_triangulation) of the centers of all of those rooms.
-* Find a minimum spanning tree from the resulting graph.
-* From the set of edges from the triangulation that were not in the MST, add 20% back to the MST to form the basic connection of the dungeon.
-* Turn each edge of the resulting graph into a "hallway" (if the rooms overlap in x, draw a horizontal line between them; if they overlap in y, draw a vertical line; if they overlap in neither, create an L connector to join them).
-* Randomly generate 20 additional, smaller rooms (5-50 tiles per dimension) that overlap with the hallways to add additional exploration options.
+* Generate 12 "rooms" of random size (between 20 and 200 tiles in both dimensions) placed randomly in a 2D plane such that they do not overlap
+* Compute a [Delaunay triangulation](https://en.wikipedia.org/wiki/Delaunay_triangulation) of the centers of all of those rooms
+* Find a minimum spanning tree from the resulting graph
+* From the set of edges from the triangulation that were not in the MST, add 20% back to the MST to form the basic connection of the dungeon
+* Turn each edge of the resulting graph into a "hallway" (if the rooms overlap in x, draw a horizontal line between them, if they overlap in y, draw a vertical line, if they overlap in neither, create an L connector to join them)
+* Randomly generate 20 additional, smaller rooms (5-50 tiles per dimension) that overlap with the hallways to add additional exploration options
 * Randomly populate all rooms.
-  * Platforms, obstacles, enemies, loot, etc.
-  * Platforms and gaps will be placed using the player's movement limits to constrain placement.
-  * Different approaches will be used for bigger rooms and smaller hallway rooms. Certain weapons and power-ups will only generate in rooms of certain sizes.
-* Each completed section will be checked for traversability to ensure the player can reach the next checkpoint.
+  * Platforms, obstacles, enemies, etc.
+  * Different approaches will be used for bigger rooms and smaller hallway rooms.
 
 ### Advanced AI
 
-Each enemy will have its own behavior according to the unique abilities (attacks) it has, with its own patrol, chase, and attack logic.
+Each enemy will have their own behavior according to what unique abilities (attacks) they have.
+* Decision trees will model behavior state transitions.
+* Gerald, Amoog, and Hive Mind enemies will have unique behavior tree models using decision trees.
 
-* **Behavior states:** Each enemy type will have a unique finite state machine defining how it transitions between states. Enemies will generally have four states: Idle, Patrol, Chase, and Attack. Gerald, Amoog, and Hive Mind will each use a unique decision tree to model their state transitions.
-* **Sound detection:** Enemies are blind and rely on sound events created when the player walks, jumps, or shoots. Hearing a sound creates a "last heard location" at the source of that sound.
-  * **Proposed sound falloff:** Dijkstra's algorithm will propagate sound through traversable space. Sound intensity will decrease with distance traveled, and enemies will react if the sound is loud enough for them to hear.
-* **Chase state:** Triggered by hearing a sound. Enemies will pathfind to the last heard location whenever it updates. A* pathfinding will be adapted for a platforming environment where jumping or falling alters the cost.
-* **Patrol state:** Triggered when an enemy reaches the last heard location without colliding with the player. The enemy will wander randomly around that spot for some interval.
-* **Attack state:** Melee enemies will attack when they collide with the player or are within close range. For ranged enemies, we propose triggering attacks within firing range and aiming toward the last heard location.
+Enemies are blind and rely on sound events created when the player walks, jumps, or shoots. Hearing a sound creates a “last heard location” at the source of that sound. Each enemy will have their own unique response, but for a general example:
+* Enemies that are in a certain range will automatically know the location of the "last heard location" object and pursue it, given their decision tree allows it.
+* If they reach the "last heard location" object and don't collide with the player, they will patrol in that area randomly for some interval.
+  * If they collide with the player while traversing to the "last heard location" object, then they attack.
 
-See the table below for further details on each enemy's general behavior, and the Final Goals rubric for a full description of the Gerald, Amoog, and Hive Mind decision trees.
+This would be what the Gerald enemy does, but for an enemy like the Amoog, they will not pursue the "last heard location" object and instead shoot in the direction of it. See the table below for futher details on enemies and their general behavior.
 
-## Enemy Overview
+### Enemy Overview
 
-| Name | Health | Behavior | Ability | Player Interaction |
-|------|--------|----------|---------|--------------------|
-| Gerald | Low | Gerald patrols and chases the player to attack them. | Deal damage by biting the player. | Stomp or shoot to kill. |
-| Amoog | Medium | Amoog patrols and attacks by shooting at the player when in range. It will chase if the player exits the range while it is shooting at them. | Deal damage by shooting fireballs at the player. | Shoot to kill. |
-| Fly Trap | High | Fly Trap is immobile and alternates between Idle and Attack, with no pathfinding. It shoots fireballs in the direction it's facing. | Deal damage by shooting fireballs in one direction at a regular interval. | Cannot kill. |
-| Hive Mind | Medium | A swarm patrols around the hive mind. When the player is in range, the swarm chases and attacks the player. | Deal accumulative damage when swarming the player. If the player kills the stationary hive, the swarm disappears. | Shoot to kill. |
-| Boss | Highest | Walks around near the player before striking with a melee attack that has a wind-up. | Deal damage with a wind-up melee strike. | Shoot to kill. |
+| Name      | Health  | Behavior                                                                                                                                     | Ability                                                                                                           | Player Interaction      |
+|-----------|---------|----------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------|-------------------------|
+| Gerald    | Low     | Gerald patrols and chases the player to attack them.                                                                                         | Deal damage by biting the player.                                                                                 | Stomp or shoot to kill. |
+| Amoog     | Medium  | Amoog patrols and attacks by shooting at the player when in range. It will chase if the player exits the range while it is shooting at them. | Deal damage by shooting fireballs at the player.                                                                  | Shoot to kill.          |
+| Fly Trap  | High    | Fly Trap is immobile. It shoots fireballs in the direction it's facing.                                                                      | Deal damage by shooting fireballs in one direction at a regular interval.                                         | Cannot kill.            |
+| Hive Mind | Medium  | A swarm patrols around the hive mind. When the player is in range, the swarm chases and attacks the player.                                  | Deal accumulative damage when swarming the player. If the player kills the stationary hive, the swarm disappears. | Shoot to kill.          |
+| Boss      | Highest | **_TBD_**                                                                                                                                    | **_TBD_**                                                                                                         |                         |
 
 ## Midterm Goals
 
