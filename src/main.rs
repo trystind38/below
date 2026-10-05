@@ -2,6 +2,7 @@ use bevy::{prelude::*, window::PresentMode};
 
 mod level;
 mod loading;
+mod stats;
 
 const TITLE: &str = "Below - Level Demo";
 const WIN_W: f32 = 1280.;
