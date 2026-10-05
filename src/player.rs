@@ -13,10 +13,12 @@ const JUMP_SPEED: f32 = 800.;
 const MAX_FALL_SPEED: f32 = 1200.;
 const JUMP_BUFFER: f32 = 0.1;
 const FAST_FALL_MULT: f32 = 1.3;
+const FAST_FALL_KICK: f32 = 150.;
 const AIR_ACCEL: f32 = 3000.;
 
 const FRAME_SIZE: u32 = 32;
 const WALK_FRAMES: usize = 4;
+const JUMP_FRAMES: u32 = 2;
 const FRAME_TIME: f32 = 0.1;
 const SPRITE_SCALE: f32 = 2.;
 
@@ -36,8 +38,10 @@ struct AnimationTimer(Timer);
 
 #[derive(Resource)]
 struct PlayerSheet {
-    image: Handle<Image>,
-    layout: Handle<TextureAtlasLayout>,
+    walk: Handle<Image>,
+    walk_layout: Handle<TextureAtlasLayout>,
+    jump: Handle<Image>,
+    jump_layout: Handle<TextureAtlasLayout>,
 }
 
 pub struct PlayerPlugin;
@@ -61,26 +65,40 @@ fn load_player(
     mut layouts: ResMut<Assets<TextureAtlasLayout>>,
     mut loading_assets: ResMut<LoadingAssets>,
 ) {
-    let image: Handle<Image> = asset_server.load("player/player_full_walk.png");
-    loading_assets.0.push(image.clone().untyped());
+    let walk: Handle<Image> = asset_server.load("player/player_full_walk.png");
+    let jump: Handle<Image> = asset_server.load("player/player_full_jump.png");
+    loading_assets.0.push(walk.clone().untyped());
+    loading_assets.0.push(jump.clone().untyped());
 
-    let layout = layouts.add(TextureAtlasLayout::from_grid(
+    let walk_layout = layouts.add(TextureAtlasLayout::from_grid(
         UVec2::splat(FRAME_SIZE),
         WALK_FRAMES as u32,
         1,
         None,
         None,
     ));
+    let jump_layout = layouts.add(TextureAtlasLayout::from_grid(
+        UVec2::splat(FRAME_SIZE),
+        JUMP_FRAMES,
+        1,
+        None,
+        None,
+    ));
 
-    commands.insert_resource(PlayerSheet { image, layout });
+    commands.insert_resource(PlayerSheet {
+        walk,
+        walk_layout,
+        jump,
+        jump_layout,
+    });
 }
 
 fn spawn_player(mut commands: Commands, sheet: Res<PlayerSheet>) {
     commands.spawn((
         Sprite::from_atlas_image(
-            sheet.image.clone(),
+            sheet.walk.clone(),
             TextureAtlas {
-                layout: sheet.layout.clone(),
+                layout: sheet.walk_layout.clone(),
                 index: 0,
             },
         ),
@@ -128,6 +146,9 @@ fn move_player(
         player.jump_buffer = 0.;
     }
     player.jump_buffer -= dt;
+    if !player.grounded && keys.any_just_pressed([KeyCode::KeyS, KeyCode::ArrowDown]) {
+        player.vel.y -= FAST_FALL_KICK;
+    }
     let fall_mult = if !player.grounded && keys.any_pressed([KeyCode::KeyS, KeyCode::ArrowDown]) {
         FAST_FALL_MULT
     } else {
@@ -165,6 +186,7 @@ fn move_player(
 
 fn animate_player(
     time: Res<Time>,
+    sheet: Res<PlayerSheet>,
     player: Single<(&Player, &mut Sprite, &mut AnimationTimer)>,
 ) {
     let (player, mut sprite, mut timer) = player.into_inner();
@@ -173,11 +195,22 @@ fn animate_player(
         sprite.flip_x = player.vel.x < 0.;
     }
 
+    let (image, layout) = if player.grounded {
+        (&sheet.walk, &sheet.walk_layout)
+    } else {
+        (&sheet.jump, &sheet.jump_layout)
+    };
+    sprite.image = image.clone();
+
     let Some(atlas) = &mut sprite.texture_atlas else {
         return;
     };
+    atlas.layout = layout.clone();
 
-    if player.grounded && player.vel.x != 0. {
+    if !player.grounded {
+        atlas.index = if player.vel.y > 0. { 0 } else { 1 };
+        timer.reset();
+    } else if player.vel.x != 0. {
         timer.tick(time.delta());
         if timer.just_finished() {
             atlas.index = (atlas.index + 1) % WALK_FRAMES;
