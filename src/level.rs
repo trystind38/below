@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 use crate::{
-    GameState, LEVEL_H, LEVEL_LEN, TILE_SIZE, WIN_H, WIN_W,
+    GameState, LEVEL_LEN, TILE_SIZE, WIN_H, WIN_W,
     loading::{LoadingAssets, despawn_with},
 };
 
@@ -49,20 +49,15 @@ fn setup_level(
     background_image: Res<BackgroundImage>,
     brick_image: Res<BrickImage>,
 ) {
-    let mut y_offset = 0.;
-    while y_offset < LEVEL_H {
-        let mut x_offset = 0.;
-        while x_offset < LEVEL_LEN {
-            commands.spawn((
-                Sprite::from_image(background_image.0.clone()),
-                Transform::from_xyz(x_offset, y_offset, 0.),
-                Background,
-            ));
+    let mut x_offset = 0.;
+    while x_offset < LEVEL_LEN {
+        commands.spawn((
+            Sprite::from_image(background_image.0.clone()),
+            Transform::from_xyz(x_offset, 0., 0.),
+            Background,
+        ));
 
-            x_offset += WIN_W;
-        }
-
-        y_offset += WIN_H;
+        x_offset += WIN_W;
     }
 
     let mut i = 0;
