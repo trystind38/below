@@ -4,8 +4,8 @@ use crate::{
     GameState, LEVEL_BOTTOM, LEVEL_LEFT, LEVEL_RIGHT, LEVEL_TOP, WIN_H, WIN_W,
 };
 
-// How quickly the camera catches up to its target. Higher is snappier.
-const CAMERA_DECAY: f32 = 8.;
+// How quickly thee camera catches up to its target. Higher is snappier.
+const CAMERA_DECAY: f32 = 7.;
 
 /// Add this to the entity the camera should follow (e.g. the player).
 /// If no entity has it, the camera stays where it is.
