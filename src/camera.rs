@@ -6,6 +6,7 @@ use crate::{
 
 // How quickly thee camera catches up to its target. Higher is snappier.
 const CAMERA_DECAY: f32 = 7.;
+const CAMERA_SCALE: f32 = 5. / 6.;
 
 /// Add this to the entity the camera should follow (e.g. the player).
 /// If no entity has it, the camera stays where it is.
@@ -23,7 +24,13 @@ impl Plugin for CameraPlugin {
 }
 
 fn setup_camera(mut commands: Commands) {
-    commands.spawn(Camera2d);
+    commands.spawn((
+        Camera2d,
+        Projection::Orthographic(OrthographicProjection {
+            scale: CAMERA_SCALE,
+            ..OrthographicProjection::default_2d()
+        }),
+    ));
 }
 
 fn follow_target(
@@ -32,8 +39,8 @@ fn follow_target(
     mut camera: Single<&mut Transform, With<Camera2d>>,
 ) {
     let goal = Vec2::new(
-        clamp_axis(target.translation.x, LEVEL_LEFT, LEVEL_RIGHT, WIN_W),
-        clamp_axis(target.translation.y, LEVEL_BOTTOM, LEVEL_TOP, WIN_H),
+        clamp_axis(target.translation.x, LEVEL_LEFT, LEVEL_RIGHT, WIN_W * CAMERA_SCALE),
+        clamp_axis(target.translation.y, LEVEL_BOTTOM, LEVEL_TOP, WIN_H * CAMERA_SCALE),
     );
 
     let mut pos = camera.translation.truncate();
