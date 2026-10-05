@@ -5,7 +5,7 @@ use crate::{
 };
 
 // How quickly thee camera catches up to its target. Higher is snappier.
-const CAMERA_DECAY: f32 = 7.;
+const CAMERA_DECAY: f32 = 8.;
 
 /// Add this to the entity the camera should follow (e.g. the player).
 /// If no entity has it, the camera stays where it is.
