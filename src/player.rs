@@ -30,6 +30,7 @@ const SKIN: f32 = 0.01;
 pub struct Player {
     pub vel: Vec2,
     pub grounded: bool,
+    pub can_fastfall: bool,
     jump_buffer: f32,
 }
 
@@ -146,8 +147,9 @@ fn move_player(
         player.jump_buffer = 0.;
     }
     player.jump_buffer -= dt;
-    if !player.grounded && keys.any_just_pressed([KeyCode::KeyS, KeyCode::ArrowDown]) {
+    if !player.grounded && player.can_fastfall && keys.any_pressed([KeyCode::KeyS, KeyCode::ArrowDown]) {
         player.vel.y -= FAST_FALL_KICK;
+        player.can_fastfall = false;
     }
     let fall_mult = if !player.grounded && keys.any_pressed([KeyCode::KeyS, KeyCode::ArrowDown]) {
         FAST_FALL_MULT
@@ -175,7 +177,9 @@ fn move_player(
             player.vel.y = 0.;
         }
     }
-
+    if player.grounded == true {
+        player.can_fastfall = true;
+    }
     // Keep the player inside the level
     let half_w = PLAYER_SIZE.x / 2.;
     tf.translation.x = tf
