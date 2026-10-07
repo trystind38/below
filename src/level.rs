@@ -38,7 +38,7 @@ fn load_level(
     loading_assets.0.push(bg_texture_handle.clone().untyped());
     commands.insert_resource(BackgroundImage(bg_texture_handle));
 
-    let brick_image_handle: Handle<Image> = asset_server.load("basic_stone_sprite.png");
+    let brick_image_handle: Handle<Image> = asset_server.load("tiles/basic_stone_sprite.png");
     loading_assets.0.push(brick_image_handle.clone().untyped());
 
     commands.insert_resource(BrickImage(brick_image_handle));
