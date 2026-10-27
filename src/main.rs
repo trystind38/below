@@ -11,6 +11,7 @@ mod health_bar;
 mod gerald;
 mod hivemind;
 mod hivemind_controller;
+mod tank_light;
 mod menus;
 mod sound;
 mod proc_gen {
@@ -88,6 +89,7 @@ fn main() {
             proc_gen::triangulation_generation::TriangulationPlugin,
             proc_gen::mst::MstPlugin,
         ))
+        .add_plugins(tank_light::TankLightPlugin)
         // Run the game
         .run();
 }
