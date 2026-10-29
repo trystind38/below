@@ -42,6 +42,10 @@ const STEP_COOLDOWN: f32 = 0.6;
 // Minimum fall speed for touching down to count as a landing sound
 const LAND_SOUND_SPEED: f32 = 200.;
 
+const LOW_HEALTH: f32 = 0.10;           
+const LOW_HEALTH_BLINK_RATE: f32 = 4.;  
+const LOW_HEALTH_TINT: Color = Color::srgb(1., 0.2, 0.2);
+
 #[derive(Component, Default)]
 pub struct Player {
     pub vel: Vec2,
@@ -306,6 +310,7 @@ fn damage_player(
 }
 
 fn tint_player(
+    time: Res<Time>,
     player: Single<(&Health, &HitCooldown, &mut Sprite), With<Player>>
 ) {
     let (health, cooldown, mut sprite) = player.into_inner();
@@ -313,6 +318,11 @@ fn tint_player(
         Color::srgb(1., 0., 0.)
     } else if cooldown.0 > HIT_COOLDOWN - HURT_FLASH_TIME {
         HURT_TINT
+    
+    } else if health.current / health.max <= LOW_HEALTH
+    && (time.elapsed_secs() * LOW_HEALTH_BLINK_RATE) as u32 % 2 == 0
+    {
+    LOW_HEALTH_TINT
     } else {
         blink_color(cooldown)
     };
