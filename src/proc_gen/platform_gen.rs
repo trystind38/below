@@ -1,3 +1,10 @@
+use rand::{rngs::StdRng, Rng, SeedableRng};
+
+use crate::proc_gen::{
+    hallway_gen::VertHallway,
+    room_generation::{RoomMap, TileType},
+};
+
 pub struct Platform {
     // first tile of the platform (left)
     pub x: i32,     
@@ -31,20 +38,39 @@ pub fn generate_platforms(
                 hallway_left
             };
 
-            let platform = Platform { x, y, width };
+            // Ensure the platform is inside map bounds
+            let in_bounds =
+                x >= 1
+                && x + width <= map.width as i32 - 1
+                && y >= 1
+                && y < map.height as i32 - 1;
 
-            // Place solid platform tiles into the map
-            for tile_x in x..x + width {
-                let index = y as usize * map.width + tile_x as usize;
-                map.tiles[index] = TileType::Wall;
+            // Don't place platforms inside rooms or against their bounds
+            let overlaps_room = map.rooms.iter().any(|room| {
+                let left = room.x as i32;
+                let right = (room.x + room.width) as i32;
+                let bottom = room.y as i32 - 1;
+                let top = (room.y + room.height) as i32 + 1;
+            
+                x < right && x + width > left
+                    && y >= bottom && y < top
+            });
+
+            if in_bounds && !overlaps_room {
+                let platform = Platform { x, y, width };
+            
+                for tile_x in x..x + width {
+                    let index = y as usize * map.width + tile_x as usize;
+                    map.tiles[index] = TileType::Wall;
+                }
+            
+                platforms.push(platform);
             }
-
-            platforms.push(platform);
-
+            
             // Alternate sides and go up 4 tiles
             left_right = !left_right;
             y += 4;
-        }    
+        }   
     }
 
     platforms

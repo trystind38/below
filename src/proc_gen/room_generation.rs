@@ -99,13 +99,13 @@ fn load_room(
 
 pub fn map_rooms(seed: u64) -> RoomMap {
 
-    const MAP_WIDTH: usize = 100;
-    const MAP_HEIGHT: usize = 80;
+    const MAP_WIDTH: usize = 160;
+    const MAP_HEIGHT: usize = 120;
     const MAX_ROOMS: usize = 12;
     // Prevent it from looping forever or getting stuck
     const MAX_ATTEMPTS: usize = 1_000;
-    const MIN_SIZE: usize = 5;
-    const MAX_SIZE: usize = 10;
+    const MIN_SIZE: usize = 12;
+    const MAX_SIZE: usize = 20;
     const GAP: f64 = 1.0;
 
     let mut map = RoomMap {

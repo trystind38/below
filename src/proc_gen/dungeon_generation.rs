@@ -5,6 +5,7 @@ use crate::proc_gen::{
     triangulation_generation::triangulate,
     mst::minimum_spanning_tree,
     hallway_gen::{carve_hallways, VertHallway},
+    platform_gen::{generate_platforms, Platform},
 };
 
 
@@ -15,6 +16,7 @@ pub struct DungeonLayout {
     pub mst_edges: Vec<Edge>,
     pub selected_edges: Vec<Edge>,
     pub vert_hallways: Vec<VertHallway>,
+    pub platforms: Vec<Platform>,
 }
 
 pub fn generate_dungeon(seed: u64) -> DungeonLayout {
@@ -49,6 +51,9 @@ pub fn generate_dungeon(seed: u64) -> DungeonLayout {
     // Carve hallways
     let vert_hallways = carve_hallways(&mut map, &selected_edges);
 
+    // Generate vertical platforms
+    let platforms = generate_platforms(&mut map, &vert_hallways, seed);
+
     DungeonLayout {
         map,
         points,
@@ -56,5 +61,6 @@ pub fn generate_dungeon(seed: u64) -> DungeonLayout {
         mst_edges,
         selected_edges,
         vert_hallways,
+        platforms,
     }
 }
