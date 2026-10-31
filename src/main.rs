@@ -22,6 +22,7 @@ mod proc_gen {
     pub mod triangulation_generation;
     pub mod dungeon_generation;
     pub mod hallway_gen;
+    pub mod platform_gen;
 }
 
 const TITLE: &str = "Below - Level Demo";
