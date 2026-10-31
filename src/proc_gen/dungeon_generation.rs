@@ -4,7 +4,7 @@ use crate::proc_gen::{
     room_generation::{RoomMap, map_rooms},
     triangulation_generation::triangulate,
     mst::minimum_spanning_tree,
-    hallway_gen::carve_hallways,
+    hallway_gen::{carve_hallways, VertHallway},
 };
 
 
@@ -14,6 +14,7 @@ pub struct DungeonLayout {
     pub delauney_edges: Vec<Edge>,
     pub mst_edges: Vec<Edge>,
     pub selected_edges: Vec<Edge>,
+    pub vert_hallways: Vec<VertHallway>,
 }
 
 pub fn generate_dungeon(seed: u64) -> DungeonLayout {
@@ -46,7 +47,7 @@ pub fn generate_dungeon(seed: u64) -> DungeonLayout {
 
     
     // Carve hallways
-    carve_hallways(&mut map, &selected_edges);
+    let vert_hallways = carve_hallways(&mut map, &selected_edges);
 
     DungeonLayout {
         map,
@@ -54,5 +55,6 @@ pub fn generate_dungeon(seed: u64) -> DungeonLayout {
         delauney_edges,
         mst_edges,
         selected_edges,
+        vert_hallways,
     }
 }
