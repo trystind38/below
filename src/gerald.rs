@@ -65,11 +65,15 @@ impl Plugin for GeraldPlugin {
             .add_systems(OnEnter(GameState::Playing), spawn_gerald)
             .add_systems(Update, (
                 gerald_state_change,
-                gerald_ai,
-                gerald_physics,
                 update_gerald_sprite,
             ))
-            .add_systems(Update, gerald_decision_tree.before(gerald_ai))
+            .add_systems( // Certain functions should be in FixedUpdate, especially physics and movement related ones
+                FixedUpdate, (
+                    gerald_physics, // Do physics first to hopefully avoid missing collisions
+                    gerald_decision_tree,
+                    gerald_ai,
+                ) .chain() // .chain() enforces the order, so .before(gerald_ai) on gerald_decision_tree is no longer needed
+            )
             .add_systems(OnExit(GameState::Playing), despawn_with::<Gerald>);
     }
 }
@@ -261,7 +265,8 @@ fn gerald_ai(
         // He'll also spin in circles which looks funny but will more likely than not be completely temporary.
         GeraldState::Attack => {
             let distance = player.translation.x - tf.translation.x;
-            gerald.velocity.x = 0.;
+            //gerald.velocity.x = 0.;
+            // ^ commented out to let collision detection manage setting velocity to 0
 
            gerald.attack_timer += dt;
 
