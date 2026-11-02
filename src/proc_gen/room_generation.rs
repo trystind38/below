@@ -104,8 +104,10 @@ pub fn map_rooms(seed: u64) -> RoomMap {
     const MAX_ROOMS: usize = 12;
     // Prevent it from looping forever or getting stuck
     const MAX_ATTEMPTS: usize = 1_000;
-    const MIN_SIZE: usize = 12;
-    const MAX_SIZE: usize = 20;
+    const MIN_WIDTH: usize = 12;
+    const MAX_WIDTH: usize = 20;
+    const MIN_HEIGHT: usize = 8;
+    const MAX_HEIGHT: usize = 14;
     const GAP: f64 = 1.0;
 
     let mut map = RoomMap {
@@ -122,8 +124,8 @@ pub fn map_rooms(seed: u64) -> RoomMap {
             break;
         }
 
-        let width = rng.gen_range(MIN_SIZE..=MAX_SIZE);
-        let height = rng.gen_range(MIN_SIZE..=MAX_SIZE);
+        let width = rng.gen_range(MIN_WIDTH..=MAX_WIDTH);
+        let height = rng.gen_range(MIN_HEIGHT..=MAX_HEIGHT);
         let x = rng.gen_range(1..=MAP_WIDTH - width - 1);
         let y = rng.gen_range(1..=MAP_HEIGHT - height - 1);
 
