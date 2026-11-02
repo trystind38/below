@@ -8,17 +8,17 @@ use crate::{
     stats::{ HIT_COOLDOWN, Health, HitCooldown, Hitbox, Invulnerable, STRAIGHT_TEETH },
 };
 
-// teeth.png is 160x160 with transparent padding, drawn at 64x64 in world space
+
 const TEETH_DRAW_SIZE: Vec2 = Vec2::new(64., 64.);
-const TEETH_SIZE: Vec2 = Vec2::new(36., 50.); // Hitbox around the visible pixels
-const TEETH_BOTTOM_PADDING: f32 = 6.; // Transparent rows under his base at draw size
-const TEETH_X: f32 = 640.; // Past the right tower in the demo level
+const TEETH_SIZE: Vec2 = Vec2::new(36., 50.);
+const TEETH_BOTTOM_PADDING: f32 = 6.; 
+const TEETH_X: f32 = 640.; 
 
 const FIREBALL_DRAW_SIZE: Vec2 = Vec2::new(24., 24.);
 const FIREBALL_SIZE: Vec2 = Vec2::new(14., 14.);
-const FIRE_INTERVAL: f32 = 2.; // Seconds between shots
-const FIREBALL_SPEED: f32 = 650.; // Initial upward speed
-const FIREBALL_GRAVITY: f32 = 512.; // Slows the fireball so it arcs back down
+const FIRE_INTERVAL: f32 = 2.; 
+const FIREBALL_SPEED: f32 = 650.; 
+const FIREBALL_GRAVITY: f32 = 512.; 
 const FIREBALL_DAMAGE: f32 = 10.;
 
 #[derive(Component)]
