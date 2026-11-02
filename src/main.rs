@@ -9,6 +9,7 @@ mod player;
 mod stats;
 mod health_bar;
 mod gerald;
+mod teeth;
 mod hivemind;
 mod hivemind_controller;
 mod tank_light;
@@ -90,7 +91,7 @@ fn main() {
             proc_gen::triangulation_generation::TriangulationPlugin,
             proc_gen::mst::MstPlugin,
         ))
-        .add_plugins(tank_light::TankLightPlugin)
+        .add_plugins((tank_light::TankLightPlugin, teeth::TeethPlugin))
         // Run the game
         .run();
 }
