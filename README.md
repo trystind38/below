@@ -8,6 +8,8 @@ Below is a 2D, run-and-gun Metroidvania game for PC where the player character m
 
 **(Temporary) Controls:**
 
+Y - spawn Hivemind from the hive
+
 U - Gerald state 0 (idle)
 
 I - Gerald state 1 (patrol)
