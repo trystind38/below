@@ -129,7 +129,7 @@ fn setup_level(
 }
 
 // Adapted from CS1666_examples
-fn spawn_tile(
+pub fn spawn_tile(
     commands: &mut Commands,
     brick_image: &Res<BrickImage>,
     translation: Vec3,

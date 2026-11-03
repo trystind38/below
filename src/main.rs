@@ -24,6 +24,7 @@ mod proc_gen {
     pub mod dungeon_generation;
     pub mod hallway_gen;
     pub mod platform_gen;
+    pub mod terrain_features;
 }
 
 const TITLE: &str = "Below - Level Demo";
@@ -92,6 +93,7 @@ fn main() {
             proc_gen::mst::MstPlugin,
         ))
         .add_plugins((tank_light::TankLightPlugin, teeth::TeethPlugin))
+        .add_plugins((proc_gen::terrain_features::TerrainFeaturesPlugin))
         // Run the game
         .run();
 }
