@@ -6,7 +6,7 @@ use crate::{
     level::{BrickImage, spawn_tile},
 };
  
-const SEED: u64 = 7;
+const SEED: u64 = 1;
 const COLS: i32 = (LEVEL_LEN / TILE_SIZE) as i32; // 160
 const START_COL: i32 = 34;
 const GROUND_HEIGHT: i32 = 1; // floor is one tile tall
