@@ -9,7 +9,7 @@ use crate::{
     loading::{LoadingAssets, despawn_with},
     sound::{SoundEvent, SoundKind},
     stats::{
-        Damage, HIT_COOLDOWN, Health, HitCooldown, Hitbox, MoveSpeed, PLAYER_DAMAGE,
+        Damage, Frozen, HIT_COOLDOWN, Health, HitCooldown, Hitbox, MoveSpeed, PLAYER_DAMAGE,
         PLAYER_HEALTH, PLAYER_SPEED,
     },
 };
@@ -42,8 +42,8 @@ const STEP_COOLDOWN: f32 = 0.6;
 // Minimum fall speed for touching down to count as a landing sound
 const LAND_SOUND_SPEED: f32 = 200.;
 
-const LOW_HEALTH: f32 = 0.10;           
-const LOW_HEALTH_BLINK_RATE: f32 = 4.;  
+const LOW_HEALTH: f32 = 0.10;
+const LOW_HEALTH_BLINK_RATE: f32 = 4.;
 const LOW_HEALTH_TINT: Color = Color::srgb(1., 0.2, 0.2);
 
 #[derive(Component, Default)]
@@ -152,11 +152,17 @@ fn spawn_player(mut commands: Commands, sheet: Res<PlayerSheet>) {
 fn move_player(
     time: Res<Time>,
     keys: Res<ButtonInput<KeyCode>>,
-    player: Single<(&mut Transform, &mut Player, &MoveSpeed)>,
+    player: Single<(&mut Transform, &mut Player, &MoveSpeed, Has<Frozen>)>,
     bricks: Query<&Transform, (With<Brick>, Without<Player>)>,
     mut sounds: MessageWriter<SoundEvent>,
 ) {
-    let (mut tf, mut player, speed) = player.into_inner();
+    let (mut tf, mut player, speed, frozen) = player.into_inner();
+
+    // Frozen (e.g. during the light burst): hold position and keep velocity as is
+    if frozen {
+        return;
+    }
+
     let dt = time.delta_secs().min(1. / 30.);
 
     let mut dir = 0.;
@@ -243,9 +249,14 @@ fn face_cursor(
     cursor: Res<CursorWorld>,
     keys: Res<ButtonInput<KeyCode>>,
     mouse: Res<ButtonInput<MouseButton>>,
-    player: Single<(&Transform, &mut Player)>,
+    player: Single<(&Transform, &mut Player, Has<Frozen>)>,
 ) {
-    let (tf, mut player) = player.into_inner();
+    let (tf, mut player, frozen) = player.into_inner();
+
+    // Frozen: stay facing the same way so the body and the tank overlay stay in sync
+    if frozen {
+        return;
+    }
 
     if mouse.pressed(MouseButton::Left) {
         if let Some(cursor) = cursor.0 {
@@ -272,9 +283,14 @@ fn face_cursor(
 fn animate_player(
     time: Res<Time>,
     sheet: Res<PlayerSheet>,
-    player: Single<(&Player, &mut Sprite, &mut AnimationTimer)>,
+    player: Single<(&Player, &mut Sprite, &mut AnimationTimer, Has<Frozen>)>,
 ) {
-    let (player, mut sprite, mut timer) = player.into_inner();
+    let (player, mut sprite, mut timer, frozen) = player.into_inner();
+
+    // Frozen: hold the current frame
+    if frozen {
+        return;
+    }
 
     sprite.flip_x = player.facing < 0.;
 
@@ -337,11 +353,10 @@ fn tint_player(
         Color::srgb(1., 0., 0.)
     } else if cooldown.0 > HIT_COOLDOWN - HURT_FLASH_TIME {
         HURT_TINT
-    
     } else if health.current / health.max <= LOW_HEALTH
-    && (time.elapsed_secs() * LOW_HEALTH_BLINK_RATE) as u32 % 2 == 0
+        && (time.elapsed_secs() * LOW_HEALTH_BLINK_RATE) as u32 % 2 == 0
     {
-    LOW_HEALTH_TINT
+        LOW_HEALTH_TINT
     } else {
         blink_color(cooldown)
     };

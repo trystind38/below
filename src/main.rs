@@ -15,6 +15,7 @@ mod hivemind_controller;
 mod tank_light;
 mod menus;
 mod sound;
+mod light_burst;
 mod proc_gen {
     pub mod geometry;
     pub mod mst;
@@ -25,6 +26,7 @@ mod proc_gen {
     pub mod hallway_gen;
     pub mod platform_gen;
     pub mod terrain_features;
+    
 }
 
 const TITLE: &str = "Below - Level Demo";
@@ -94,6 +96,7 @@ fn main() {
         ))
         .add_plugins((tank_light::TankLightPlugin, teeth::TeethPlugin))
         .add_plugins((proc_gen::terrain_features::TerrainFeaturesPlugin))
+        .add_plugins((light_burst::LightBurstPlugin))
         // Run the game
         .run();
 }

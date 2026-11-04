@@ -21,6 +21,9 @@ pub struct Damage(pub f32);// How much damage this entity deals when it hits som
 pub struct Invulnerable; // damage systems skip entities with this
 
 #[derive(Component)]
+pub struct Frozen;
+
+#[derive(Component)]
 pub struct MoveSpeed(pub f32);
 
 #[derive(Component)]
