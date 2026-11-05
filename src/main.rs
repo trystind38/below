@@ -1,5 +1,6 @@
 use bevy::{prelude::*, window::PresentMode};
 
+mod burst_meter;
 mod camera;
 mod combat;
 mod gun;
@@ -26,7 +27,6 @@ mod proc_gen {
     pub mod hallway_gen;
     pub mod platform_gen;
     pub mod terrain_features;
-    
 }
 
 const TITLE: &str = "Below - Level Demo";
@@ -94,9 +94,13 @@ fn main() {
             proc_gen::triangulation_generation::TriangulationPlugin,
             proc_gen::mst::MstPlugin,
         ))
-        .add_plugins((tank_light::TankLightPlugin, teeth::TeethPlugin))
-        .add_plugins((proc_gen::terrain_features::TerrainFeaturesPlugin))
-        .add_plugins((light_burst::LightBurstPlugin))
+        .add_plugins((
+            tank_light::TankLightPlugin,
+            teeth::TeethPlugin,
+            burst_meter::BurstMeterPlugin,
+            light_burst::LightBurstPlugin,
+            proc_gen::terrain_features::TerrainFeaturesPlugin,
+        ))
         // Run the game
         .run();
 }
