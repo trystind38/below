@@ -1,5 +1,6 @@
 use bevy::{prelude::*, window::PresentMode};
 
+mod burst_meter;
 mod camera;
 mod combat;
 mod gun;
@@ -15,6 +16,7 @@ mod hivemind_controller;
 mod tank_light;
 mod menus;
 mod sound;
+mod light_burst;
 mod proc_gen {
     pub mod geometry;
     pub mod mst;
@@ -92,8 +94,13 @@ fn main() {
             proc_gen::triangulation_generation::TriangulationPlugin,
             proc_gen::mst::MstPlugin,
         ))
-        .add_plugins((tank_light::TankLightPlugin, teeth::TeethPlugin))
-        .add_plugins((proc_gen::terrain_features::TerrainFeaturesPlugin))
+        .add_plugins((
+            tank_light::TankLightPlugin,
+            teeth::TeethPlugin,
+            burst_meter::BurstMeterPlugin,
+            light_burst::LightBurstPlugin,
+            proc_gen::terrain_features::TerrainFeaturesPlugin,
+        ))
         // Run the game
         .run();
 }
