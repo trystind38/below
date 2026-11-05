@@ -1,7 +1,13 @@
 use bevy::prelude::*;
 use std::f32::consts::TAU;
 
-use crate::{GameState, loading::despawn_with, player::Player, stats::Frozen};
+use crate::{
+    GameState, WIN_H, WIN_W,
+    burst_meter::{BURST_HEALTH_COST, BurstMeter, POWER_COLOR, enough_health},
+    loading::despawn_with,
+    player::Player,
+    stats::{Enemy, Frozen, Health},
+};
 
 const BURST_KEY: KeyCode = KeyCode::KeyF;
 
@@ -17,6 +23,7 @@ const CORE_RADIUS: f32 = 160.;
 const CORE_TIME: f32 = 0.8;
 
 // Screen going white. The player is frozen until this has fully faded out.
+// Every enemy on screen dies at the moment the screen is fully white.
 const WHITE_DELAY: f32 = 0.5; // seconds before the screen starts going white
 const WHITE_RAMP: f32 = 0.25; // seconds to reach full white
 const WHITE_HOLD: f32 = 0.5; // seconds fully white
@@ -37,27 +44,39 @@ struct BurstCore {
 #[derive(Component)]
 struct Whiteout {
     age: f32,
+    killed: bool, // true once the enemies have been killed
 }
 
 fn spawn_burst(
     mut commands: Commands,
     keys: Res<ButtonInput<KeyCode>>,
-    player: Single<(Entity, &Transform, Has<Frozen>), With<Player>>,
+    mut meter: ResMut<BurstMeter>,
+    player: Single<(Entity, &Transform, &mut Health, Has<Frozen>), With<Player>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
-    let (player_entity, player_tf, frozen) = player.into_inner();
+    let (player_entity, player_tf, mut health, frozen) = player.into_inner();
 
     // can't start a new burst while one is already playing
     if !keys.just_pressed(BURST_KEY) || frozen {
         return;
     }
 
+    // needs a full meter and nearly full health
+    if !meter.is_full() || !enough_health(&health) {
+        return;
+    }
+
+    // pay the cost: empty the meter and use up most of the tank
+    meter.0 = 0.;
+    let cost = health.max * BURST_HEALTH_COST;
+    health.current -= cost;
+
     // freeze the player until the light is gone
     commands.entity(player_entity).insert(Frozen);
 
     let origin = player_tf.translation.with_z(50.);
-    let white = materials.add(Color::WHITE);
+    let power = materials.add(POWER_COLOR);
 
     // one thin triangle: wide base at the origin, tip at x = 1
     let ray_mesh = meshes.add(Triangle2d::new(
@@ -75,7 +94,7 @@ fn spawn_burst(
 
         commands.spawn((
             Mesh2d(ray_mesh.clone()),
-            MeshMaterial2d(white.clone()),
+            MeshMaterial2d(power.clone()),
             Transform::from_translation(origin)
                 .with_rotation(Quat::from_rotation_z(angle))
                 .with_scale(Vec3::ZERO),
@@ -89,7 +108,7 @@ fn spawn_burst(
 
     commands.spawn((
         Mesh2d(meshes.add(Circle::new(1.).mesh().resolution(64))),
-        MeshMaterial2d(white),
+        MeshMaterial2d(power),
         Transform::from_translation(origin).with_scale(Vec3::ZERO),
         BurstCore { age: 0. },
     ));
@@ -104,7 +123,10 @@ fn spawn_burst(
         },
         BackgroundColor(Color::srgba(1., 1., 1., 0.)),
         GlobalZIndex(1000),
-        Whiteout { age: 0. },
+        Whiteout {
+            age: 0.,
+            killed: false,
+        },
     ));
 }
 
@@ -150,6 +172,8 @@ fn update_whiteout(
     mut commands: Commands,
     time: Res<Time>,
     players: Query<Entity, With<Player>>,
+    cameras: Query<(&Transform, &Projection), With<Camera2d>>,
+    mut enemies: Query<(&Transform, &mut Health), With<Enemy>>,
     mut layers: Query<(Entity, &mut Whiteout, &mut BackgroundColor)>,
 ) {
     for (e, mut layer, mut bg) in &mut layers {
@@ -166,6 +190,27 @@ fn update_whiteout(
             1. - (t - WHITE_RAMP - WHITE_HOLD) / WHITE_FADE
         };
         bg.0 = Color::srgba(1., 1., 1., alpha.clamp(0., 1.));
+
+        // the screen is fully white: kill every enemy that is on screen while nobody can see it.
+        // This sets health directly, so it also gets past Invulnerable.
+        if !layer.killed && t >= WHITE_RAMP {
+            layer.killed = true;
+            if let Some((cam_tf, projection)) = cameras.iter().next() {
+                let scale = match projection {
+                    Projection::Orthographic(o) => o.scale,
+                    _ => 1.,
+                };
+                let half_view = Vec2::new(WIN_W, WIN_H) * scale / 2.;
+                let center = cam_tf.translation.truncate();
+
+                for (tf, mut health) in &mut enemies {
+                    let d = (tf.translation.truncate() - center).abs();
+                    if d.x <= half_view.x && d.y <= half_view.y {
+                        health.current = 0.;
+                    }
+                }
+            }
+        }
 
         // the light is gone: let the player move again
         if t >= WHITE_RAMP + WHITE_HOLD + WHITE_FADE {
