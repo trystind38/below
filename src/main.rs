@@ -14,6 +14,7 @@ mod teeth;
 mod hivemind;
 mod hivemind_controller;
 mod tank_light;
+mod forcefield;
 mod menus;
 mod sound;
 mod light_burst;
@@ -100,6 +101,7 @@ fn main() {
             burst_meter::BurstMeterPlugin,
             light_burst::LightBurstPlugin,
             proc_gen::terrain_features::TerrainFeaturesPlugin,
+            forcefield::ForceFieldPlugin,
         ))
         // Run the game
         .run();

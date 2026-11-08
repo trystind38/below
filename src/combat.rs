@@ -2,6 +2,7 @@ use bevy::prelude::*;
 
 use crate::{
     GameState, LEVEL_BOTTOM, LEVEL_LEFT, LEVEL_RIGHT, LEVEL_TOP, TILE_SIZE,
+    forcefield::{ForceField, Vulnerable, damage_taken},
     level::Brick,
     loading::despawn_with,
     player::{Player, PlayerSystems},
@@ -128,7 +129,7 @@ fn bullet_hits(
 fn player_enemy_contact(
     time: Res<Time>,
     player: Single<
-        (&Transform, &Hitbox, &mut Player, &mut Health, &mut HitCooldown),
+        (&Transform, &Hitbox, &mut Player, &mut Health, &mut HitCooldown, Has<ForceField>, Has<Vulnerable>),
         Without<Enemy>,
     >,
     mut enemies: Query<
@@ -136,7 +137,8 @@ fn player_enemy_contact(
         (With<Enemy>, Without<Player>),
     >,
 ) {
-    let (player_tf, player_box, mut player, mut health, mut cooldown) = player.into_inner();
+    let (player_tf, player_box, mut player, mut health, mut cooldown, shielded, vulnerable) =
+        player.into_inner();
     if health.current <= 0. {
         return;
     }
@@ -176,7 +178,9 @@ fn player_enemy_contact(
                 }
             }
         } else if !stomped && cooldown.0 <= 0. {
-            health.current = (health.current - damage.0).max(0.);
+            // Half damage while the forcefield is up, 1.5x for a few seconds after it drops
+            health.current =
+                (health.current - damage_taken(damage.0, shielded, vulnerable)).max(0.);
             cooldown.0 = HIT_COOLDOWN;
 
             let away = if player_pos.x == enemy_pos.x {
