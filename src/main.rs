@@ -1,5 +1,8 @@
 use bevy::{prelude::*, window::PresentMode};
 
+mod astar {
+    pub mod astar;
+}
 mod burst_meter;
 mod camera;
 mod combat;
