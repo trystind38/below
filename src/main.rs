@@ -3,6 +3,8 @@ use bevy::{prelude::*, window::PresentMode};
 mod burst_meter;
 mod camera;
 mod combat;
+mod forcefield;
+mod shining_road;
 mod gun;
 mod level;
 mod loading;
@@ -14,7 +16,6 @@ mod teeth;
 mod hivemind;
 mod hivemind_controller;
 mod tank_light;
-mod forcefield;
 mod menus;
 mod sound;
 mod light_burst;
@@ -100,8 +101,9 @@ fn main() {
             teeth::TeethPlugin,
             burst_meter::BurstMeterPlugin,
             light_burst::LightBurstPlugin,
-            proc_gen::terrain_features::TerrainFeaturesPlugin,
             forcefield::ForceFieldPlugin,
+            shining_road::ShiningRoadPlugin,
+            proc_gen::terrain_features::TerrainFeaturesPlugin,
         ))
         // Run the game
         .run();

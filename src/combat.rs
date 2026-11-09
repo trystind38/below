@@ -6,6 +6,7 @@ use crate::{
     level::Brick,
     loading::despawn_with,
     player::{Player, PlayerSystems},
+    shining_road::Scared,
     stats::{
         Damage, ENEMY_HIT_COOLDOWN, Enemy, HIT_COOLDOWN, Health, HitCooldown, Hitbox,
         Invulnerable, PLAYER_STOMP_DAMAGE, Stompable,
@@ -133,7 +134,7 @@ fn player_enemy_contact(
         Without<Enemy>,
     >,
     mut enemies: Query<
-        (&mut Transform, &Hitbox, &Damage, &mut Health, &mut HitCooldown, Has<Invulnerable>, Has<Stompable>),
+        (&mut Transform, &Hitbox, &Damage, &mut Health, &mut HitCooldown, Has<Invulnerable>, Has<Stompable>, Has<Scared>),
         (With<Enemy>, Without<Player>),
     >,
 ) {
@@ -151,7 +152,7 @@ fn player_enemy_contact(
     let falling = player.vel.y < 0.;
     let mut stomped = false;
 
-    for (mut enemy_tf, enemy_box, damage, mut enemy_health, mut enemy_cooldown, invulnerable, stompable) in
+    for (mut enemy_tf, enemy_box, damage, mut enemy_health, mut enemy_cooldown, invulnerable, stompable, scared) in
         &mut enemies
     {
         let enemy_pos = enemy_tf.translation.truncate();
@@ -177,7 +178,7 @@ fn player_enemy_contact(
                     enemy_tf.translation.y -= enemy_box.0.y / 4.;
                 }
             }
-        } else if !stomped && cooldown.0 <= 0. {
+        } else if !stomped && !scared && cooldown.0 <= 0. {
             // Half damage while the forcefield is up, 1.5x for a few seconds after it drops
             health.current =
                 (health.current - damage_taken(damage.0, shielded, vulnerable)).max(0.);
