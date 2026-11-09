@@ -2,9 +2,11 @@ use bevy::prelude::*;
 
 use crate::{
     GameState, LEVEL_BOTTOM, LEVEL_LEFT, LEVEL_RIGHT, LEVEL_TOP, TILE_SIZE,
+    forcefield::{ForceField, Vulnerable, damage_taken},
     level::Brick,
     loading::despawn_with,
     player::{Player, PlayerSystems},
+    shining_road::Scared,
     stats::{
         Damage, ENEMY_HIT_COOLDOWN, Enemy, HIT_COOLDOWN, Health, HitCooldown, Hitbox,
         Invulnerable, PLAYER_STOMP_DAMAGE, Stompable,
@@ -124,15 +126,16 @@ fn bullet_hits(
 fn player_enemy_contact(
     time: Res<Time>,
     player: Single<
-        (&Transform, &Hitbox, &mut Player, &mut Health, &mut HitCooldown),
+        (&Transform, &Hitbox, &mut Player, &mut Health, &mut HitCooldown, Has<ForceField>, Has<Vulnerable>),
         Without<Enemy>,
     >,
     mut enemies: Query<
-        (&mut Transform, &Hitbox, &Damage, &mut Health, &mut HitCooldown, Has<Invulnerable>, Has<Stompable>),
+        (&mut Transform, &Hitbox, &Damage, &mut Health, &mut HitCooldown, Has<Invulnerable>, Has<Stompable>, Has<Scared>),
         (With<Enemy>, Without<Player>),
     >,
 ) {
-    let (player_tf, player_box, mut player, mut health, mut cooldown) = player.into_inner();
+    let (player_tf, player_box, mut player, mut health, mut cooldown, shielded, vulnerable) =
+        player.into_inner();
     if health.current <= 0. {
         return;
     }
@@ -145,7 +148,7 @@ fn player_enemy_contact(
     let falling = player.vel.y < 0.;
     let mut stomped = false;
 
-    for (mut enemy_tf, enemy_box, damage, mut enemy_health, mut enemy_cooldown, invulnerable, stompable) in
+    for (mut enemy_tf, enemy_box, damage, mut enemy_health, mut enemy_cooldown, invulnerable, stompable, scared) in
         &mut enemies
     {
         let enemy_pos = enemy_tf.translation.truncate();
@@ -171,8 +174,10 @@ fn player_enemy_contact(
                     enemy_tf.translation.y -= enemy_box.0.y / 4.;
                 }
             }
-        } else if !stomped && cooldown.0 <= 0. {
-            health.current = (health.current - damage.0).max(0.);
+        } else if !stomped && !scared && cooldown.0 <= 0. {
+            // Half damage while the forcefield is up, 1.5x for a few seconds after it drops
+            health.current =
+                (health.current - damage_taken(damage.0, shielded, vulnerable)).max(0.);
             cooldown.0 = HIT_COOLDOWN;
 
             let away = if player_pos.x == enemy_pos.x {

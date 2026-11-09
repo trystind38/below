@@ -7,6 +7,7 @@ use crate::{
     gun::CursorWorld,
     level::Brick,
     loading::{LoadingAssets, despawn_with},
+    shining_road::ShiningRoad,
     sound::{SoundEvent, SoundKind},
     stats::{
         Damage, Frozen, HIT_COOLDOWN, Health, HitCooldown, Hitbox, MoveSpeed, PLAYER_DAMAGE,
@@ -152,11 +153,11 @@ fn spawn_player(mut commands: Commands, sheet: Res<PlayerSheet>) {
 fn move_player(
     time: Res<Time>,
     keys: Res<ButtonInput<KeyCode>>,
-    player: Single<(&mut Transform, &mut Player, &MoveSpeed, Has<Frozen>)>,
+    player: Single<(&mut Transform, &mut Player, &MoveSpeed, Has<Frozen>, Has<ShiningRoad>)>,
     bricks: Query<&Transform, (With<Brick>, Without<Player>)>,
     mut sounds: MessageWriter<SoundEvent>,
 ) {
-    let (mut tf, mut player, speed, frozen) = player.into_inner();
+    let (mut tf, mut player, speed, frozen, shining) = player.into_inner();
 
     // Frozen (e.g. during the light burst): hold position and keep velocity as is
     if frozen {
@@ -171,6 +172,10 @@ fn move_player(
     }
     if keys.any_pressed([KeyCode::KeyD, KeyCode::ArrowRight]) {
         dir += 1.;
+    }
+    // On the Shining Road you can only move forward
+    if shining && dir * player.facing < 0. {
+        dir = 0.;
     }
     let target = dir * speed.0;
     if player.stun > 0. {
@@ -249,12 +254,12 @@ fn face_cursor(
     cursor: Res<CursorWorld>,
     keys: Res<ButtonInput<KeyCode>>,
     mouse: Res<ButtonInput<MouseButton>>,
-    player: Single<(&Transform, &mut Player, Has<Frozen>)>,
+    player: Single<(&Transform, &mut Player, Has<Frozen>, Has<ShiningRoad>)>,
 ) {
-    let (tf, mut player, frozen) = player.into_inner();
+    let (tf, mut player, frozen, shining) = player.into_inner();
 
-    // Frozen: stay facing the same way so the body and the tank overlay stay in sync
-    if frozen {
+    // Frozen or on the Shining Road: keep facing the same way
+    if frozen || shining {
         return;
     }
 

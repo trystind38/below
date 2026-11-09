@@ -5,6 +5,9 @@ use crate::{GameState, loading::despawn_with, player::Player, stats::Health};
 // How much of the player's full health the burst uses
 pub const BURST_HEALTH_COST: f32 = 0.9;
 
+// How much of the meter the forcefield uses (the light burst needs the whole meter)
+pub const FORCEFIELD_METER_COST: f32 = 0.75;
+
 // How fast the meter fills, as a fraction per second (0.025 = 40 seconds to fill)
 const FILL_RATE: f32 = 0.025;
 
@@ -25,7 +28,7 @@ const AURA_PULSE: f32 = 0.08; // how much it breathes in and out
 const AURA_PULSE_SPEED: f32 = 6.;
 
 // The color of the power: used by the glow here and by the light burst in light_burst.rs
-const POWER_RGB: [f32; 3] = [1., 0.85, 0.25]; // golden
+pub const POWER_RGB: [f32; 3] = [1., 0.85, 0.25]; // golden
 pub const POWER_COLOR: Color = Color::srgb(POWER_RGB[0], POWER_RGB[1], POWER_RGB[2]);
 const AURA_COLOR: Color = Color::srgba(POWER_RGB[0], POWER_RGB[1], POWER_RGB[2], 0.05); // very see-through
 
@@ -172,12 +175,5 @@ fn update_aura(
         // a slow breathing pulse
         let pulse = 1. + AURA_PULSE * (time.elapsed_secs() * AURA_PULSE_SPEED).sin();
         tf.scale = Vec3::splat(aura.level * pulse);
-    }
-}
-
-//finally, after the player uses the burst, we need to reset the aura so it can fade out
-pub fn reset_aura(mut auras: Query<&mut ReadyAura>) {
-    for mut aura in &mut auras {
-        aura.level = 0.;
     }
 }
