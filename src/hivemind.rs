@@ -2,10 +2,12 @@ use bevy::prelude::*;
 use rand::Rng;
 
 use crate :: {
-    GameState, LEVEL_BOTTOM, TILE_SIZE,
+    GameState, LEVEL_BOTTOM, LEVEL_LEFT, LEVEL_RIGHT, TILE_SIZE,
+    level::Brick,
     loading::{ LoadingAssets, despawn_with },
     stats::{ HIVEMIND, HitCooldown, Hitbox, MoveSpeed },
     player::Player,
+    shining_road::{ FLEE_SPEED_MULT, Scared },
 };
 
 const SPRITE_SCALE: f32 = 2.;
@@ -55,6 +57,7 @@ impl Plugin for HivemindPlugin {
                 //hivemind_ai,
                 update_hivemind_sprite,
                 hivemind_idle,
+                hivemind_flee,
             ))
             .add_systems(OnExit(GameState::Playing), despawn_with::<Hivemind>);
     }
@@ -112,7 +115,7 @@ fn spawn_hivemind(mut commands: Commands, sheet: Res<HivemindSheet>) {
     ));
 }
 
- fn update_hivemind_sprite(
+fn update_hivemind_sprite(
     time: Res<Time>,
     mut query: Query<(&mut Hivemind, &mut Sprite)>,
 ) {
@@ -144,6 +147,41 @@ fn hivemind_idle(
             hivemind.idle_origin_y
             + (hivemind.idle_timer * hivemind.idle_speed).sin()
             * hivemind.idle_amplitude;
+    }
+}
+
+// Shining Road: a scared hivemind drifts away from the player.
+// (The hivemind has no movement of its own yet, so this is its only way of moving.)
+fn hivemind_flee(
+    time: Res<Time>,
+    player: Single<&Transform, With<Player>>,
+    mut hiveminds: Query<
+        (&mut Transform, &MoveSpeed),
+        (With<Hivemind>, With<Scared>, Without<Player>),
+    >,
+    bricks: Query<&Transform, (With<Brick>, Without<Hivemind>, Without<Player>)>,
+) {
+    let dt = time.delta_secs().min(1. / 30.);
+
+    for (mut tf, speed) in &mut hiveminds {
+        let away = (tf.translation.x - player.translation.x).signum();
+        tf.translation.x += away * speed.0 * FLEE_SPEED_MULT * dt;
+
+        // Don't drift through the terrain
+        for brick in &bricks {
+            let d = (tf.translation - brick.translation).truncate();
+            let pen = (HIVEMIND_SIZE + Vec2::splat(TILE_SIZE)) / 2. - d.abs();
+            if pen.x > 0.01 && pen.y > 0.01 {
+                tf.translation.x += pen.x * d.signum().x;
+            }
+        }
+
+        // Don't leave the level
+        let half_w = HIVEMIND_SIZE.x / 2.;
+        tf.translation.x = tf
+            .translation
+            .x
+            .clamp(LEVEL_LEFT + half_w, LEVEL_RIGHT - half_w);
     }
 }
 /*

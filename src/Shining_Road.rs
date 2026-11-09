@@ -5,24 +5,28 @@ use crate::{
     burst_meter::{BurstMeter, POWER_RGB},
     loading::despawn_with,
     player::Player,
-    stats::{Enemy, Frozen, Hitbox},
+    stats::{Enemy, Frozen, Hitbox, MoveSpeed},
 };
 
 const ROAD_KEY: KeyCode = KeyCode::KeyH;
 const ROAD_TIME: f32 = 4.; // seconds the light shines
-const ROAD_METER_COST: f32 = 0.9;
+const ROAD_METER_COST: f32 = 0.9; // fraction of the shared meter it uses
 
 // The beam (world units)
 const ROAD_START: f32 = 24.; // how far in front of the player the beam starts
 const ROAD_LENGTH: f32 = 1000.;
-const ROAD_WIDTH: f32 = 52.;
-const ROAD_LAYERS: u32 = 3; // soft edges come from stacking this many see-through strips
-const ROAD_LAYER_ALPHA: f32 = 0.07;
+const ROAD_WIDTH: f32 = 64.; // as tall as the player
+const ROAD_LAYERS: u32 = 6; // soft edges come from stacking this many see-through strips
+const ROAD_LAYER_ALPHA: f32 = 0.09;
 const ROAD_FADE: f32 = 0.3; // seconds to fade in and out at the ends
 
 // How long enemies keep running after they leave the light
 const SCARED_LINGER: f32 = 1.5;
 
+// How much faster than normal a scared enemy should run away (for the enemy movement code)
+pub const FLEE_SPEED_MULT: f32 = 1.5;
+
+// On the player while the road is shining. dir is locked when it starts: 1 = right, -1 = left.
 #[derive(Component)]
 pub struct ShiningRoad {
     time_left: f32,
@@ -117,7 +121,7 @@ fn update_road(
     let (entity, player_tf, mut road) = player.into_inner();
     road.time_left -= time.delta_secs();
 
-    // time's up lol turn the light off and let the player turn around again
+    // time's up: turn the light off and let the player turn around again
     if road.time_left <= 0. {
         commands.entity(entity).remove::<ShiningRoad>();
         for (beam, _) in &beams {
@@ -142,7 +146,7 @@ fn scare_enemies(
     mut commands: Commands,
     player: Single<(&Transform, &ShiningRoad), With<Player>>,
     mut enemies: Query<
-        (Entity, &Transform, &Hitbox, Option<&mut Scared>),
+        (Entity, &Transform, &Hitbox, &MoveSpeed, Option<&mut Scared>),
         (With<Enemy>, Without<Player>),
     >,
 ) {
@@ -150,7 +154,12 @@ fn scare_enemies(
     let center = beam_center(player_tf.translation.truncate(), road.dir);
     let beam_size = Vec2::new(ROAD_LENGTH, ROAD_WIDTH);
 
-    for (entity, tf, hitbox, scared) in &mut enemies {
+    for (entity, tf, hitbox, speed, scared) in &mut enemies {
+        // an enemy that can't move (Straight Teeth) can't run, so the light ignores it
+        if speed.0 <= 0. {
+            continue;
+        }
+
         let d = (tf.translation.truncate() - center).abs();
         let reach = (beam_size + hitbox.0) / 2.;
         if d.x < reach.x && d.y < reach.y {
