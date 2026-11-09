@@ -16,6 +16,8 @@ use crate::{
 const BULLET_HIT_SIZE: Vec2 = Vec2::splat(6.);
 
 const FLASH_TIME: f32 = 0.1;
+// Above 1.0 brightens the sprite instead of tinting it
+const FLASH_COLOR: Color = Color::linear_rgb(4., 4., 4.);
 const BLINK_RATE: f32 = 12.; // toggles per second
 const BLINK_ALPHA: f32 = 0.35;
 
@@ -31,12 +33,6 @@ pub struct Bullet {
     pub vel: Vec2,
     pub damage: f32,
     pub life: f32,
-}
-
-#[derive(Component)]
-pub struct HitFlashImage {
-    pub normal: Handle<Image>,
-    pub flash: Handle<Image>,
 }
 
 pub struct CombatPlugin;
@@ -215,19 +211,10 @@ fn is_flashing(cooldown: &HitCooldown) -> bool {
 }
 
 fn show_enemy_hit_feedback(
-    mut enemies: Query<(&HitCooldown, Option<&HitFlashImage>, &mut Sprite), With<Enemy>>,
+    mut enemies: Query<(&HitCooldown, &mut Sprite), With<Enemy>>,
 ) {
-    for (cooldown, images, mut sprite) in &mut enemies {
-        let flashing = is_flashing(cooldown);
-
-        if let Some(images) = images {
-            let wanted = if flashing { &images.flash } else { &images.normal };
-            if sprite.image != *wanted {
-                sprite.image = wanted.clone();
-            }
-        }
-
-        sprite.color = if flashing { Color::WHITE } else { blink_color(cooldown) };
+    for (cooldown, mut sprite) in &mut enemies {
+        sprite.color = if is_flashing(cooldown) { FLASH_COLOR } else { blink_color(cooldown) };
     }
 }
 
