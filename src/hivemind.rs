@@ -5,13 +5,27 @@ use crate :: {
     GameState, LEVEL_BOTTOM, LEVEL_LEFT, LEVEL_RIGHT, TILE_SIZE,
     level::Brick,
     loading::{ LoadingAssets, despawn_with },
-    stats::{ HIVEMIND, HitCooldown, Hitbox, MoveSpeed },
+    stats::{ HIVEMIND, HitCooldown, Hitbox, MoveSpeed, Health, Damage, },
     player::Player,
-    shining_road::{ FLEE_SPEED_MULT, Scared },
+    hivemind_controller::HIVE_SIZE,
+    level::Brick,
 };
 
 const SPRITE_SCALE: f32 = 2.;
 const HIVEMIND_SIZE: Vec2 = Vec2::new(32., 32.);
+const AGGRO_RANGE: f32 = 180.;
+const ATTACK_RANGE: f32 = 72.;
+
+const PATROL_RADIUS: f32 = TILE_SIZE * 20.;
+
+const PATROL_SPEED: f32 = 35.;
+
+const CHASE_ACCELERATION: f32 = 270.;
+const CHASE_MAX_SPEED: f32 = 350.;
+
+const ATTACK_SPEED: f32 = 400.;
+const ATTACK_DURATION: f32 = 0.4;
+const WALL_DEFLECTION: f32 = 0.35;
 
 #[derive(Component, Default)]
 pub struct Hivemind {
@@ -20,23 +34,28 @@ pub struct Hivemind {
     pub attack_timer: f32,
     pub animation_timer: f32,
 
+    //hive location
+    pub hive_origin: Vec2,
+
     //idle animation
     pub idle_timer: f32,
     pub idle_origin_y: f32,
     pub idle_amplitude: f32,
     pub idle_speed: f32,
+    pub has_hit_player: bool,
+    pub has_bounced: bool,
 }
 
 #[derive(Resource)]
-struct HivemindSheet {
+pub struct HivemindSheet {
     sprite_sheet: Handle<Image>,
     layout: Handle<TextureAtlasLayout>,
 }
 
 #[derive(Component, Default, PartialEq, Eq)]
 pub enum HivemindState {
-    #[default]
     Idle,
+    #[default]
     Patrol,
     Chase,
     Attack,
@@ -54,10 +73,8 @@ impl Plugin for HivemindPlugin {
         app.add_systems(Startup, load_hivemind)
             .add_systems(OnEnter(GameState::Playing), spawn_hivemind)
             .add_systems(Update, (
-                //hivemind_ai,
+                hivemind_ai,
                 update_hivemind_sprite,
-                hivemind_idle,
-                hivemind_flee,
             ))
             .add_systems(OnExit(GameState::Playing), despawn_with::<Hivemind>);
     }
@@ -86,8 +103,26 @@ fn load_hivemind(
 }
 
 fn spawn_hivemind(mut commands: Commands, sheet: Res<HivemindSheet>) {
-    let spawn_y = 25. + LEVEL_BOTTOM + TILE_SIZE + HIVEMIND_SIZE.y / 2.;
+    spawn_hivemind_enemy(
+        &mut commands,
+        &sheet,
+        Vec2::new(
+            464.,
+            LEVEL_BOTTOM + TILE_SIZE + HIVEMIND_SIZE.y / 2.,
+        ),
+        Vec2::new(
+            512.,
+            LEVEL_BOTTOM + TILE_SIZE + HIVE_SIZE.y,
+        ),
+    );
+}
 
+pub fn spawn_hivemind_enemy(
+    commands: &mut Commands,
+    sheet: &HivemindSheet,
+    spawn_position: Vec2,
+    hive_position: Vec2,
+) {
     commands.spawn((
         Sprite::from_atlas_image(
             sheet.sprite_sheet.clone(),
@@ -96,12 +131,16 @@ fn spawn_hivemind(mut commands: Commands, sheet: Res<HivemindSheet>) {
                 index: 0,
             },
         ),
-        Transform::from_xyz(196., LEVEL_BOTTOM + TILE_SIZE + HIVEMIND_SIZE.y / 2., 2.)
-            .with_scale(Vec3::splat(SPRITE_SCALE)),
-        Hivemind{
-            idle_origin_y: spawn_y,
-            idle_amplitude: 4.,     //pixel amplitude of the bounce
-            idle_speed: 3.,         //radians per second
+        Transform::from_xyz(
+            spawn_position.x,
+            spawn_position.y,
+            2.,
+        ).with_scale(Vec3::splat(SPRITE_SCALE)),
+        Hivemind {
+            hive_origin: hive_position,
+            idle_origin_y: spawn_position.y,
+            idle_amplitude: 4.,
+            idle_speed: 3.,
             ..default()
         },
         HIVEMIND.bundle(),
@@ -113,6 +152,45 @@ fn spawn_hivemind(mut commands: Commands, sheet: Res<HivemindSheet>) {
         },
         HivemindState::default(),
     ));
+}
+
+fn overlaps(a_pos: Vec2, a_size: Vec2, b_pos: Vec2, b_size: Vec2) -> bool {
+    let d = (a_pos - b_pos).abs();
+    let reach = (a_size + b_size) / 2.;
+    d.x < reach.x && d.y < reach.y
+}
+
+fn resolve_brick_collision(
+    tf: &mut Transform,
+    velocity: &mut Vec2,
+    brick_pos: Vec2,
+) {
+    let position = tf.translation.truncate();
+
+    let delta = position - brick_pos;
+
+    let overlap = (HIVEMIND_SIZE + Vec2::splat(TILE_SIZE)) / 2. - delta.abs();
+
+    // No collision
+    if overlap.x <= 0. || overlap.y <= 0. {
+        return;
+    }
+
+    if overlap.x < overlap.y {
+        let direction = if delta.x >= 0. { 1. } else { -1. };
+        tf.translation.x += overlap.x * direction;
+
+        if velocity.x * direction < 0. {
+            velocity.x = -velocity.x * WALL_DEFLECTION;
+        }
+    } else {
+        let direction = if delta.y >= 0. { 1. } else { -1. };
+        tf.translation.y += overlap.y * direction;
+
+        if velocity.y * direction < 0. {
+            velocity.y = -velocity.y * WALL_DEFLECTION;
+        }
+    }
 }
 
 fn update_hivemind_sprite(
@@ -132,63 +210,10 @@ fn update_hivemind_sprite(
     }
 }
 
-fn hivemind_idle(
-    time: Res<Time>,
-    mut query: Query<(&mut Transform, &mut Hivemind, &HivemindState)>,
-) {
-    for (mut tf, mut hivemind, state) in &mut query {
-        if *state != HivemindState::Idle {
-            continue;
-        }
-
-        hivemind.idle_timer += time.delta_secs();
-
-        tf.translation.y =
-            hivemind.idle_origin_y
-            + (hivemind.idle_timer * hivemind.idle_speed).sin()
-            * hivemind.idle_amplitude;
-    }
-}
-
-// Shining Road: a scared hivemind drifts away from the player.
-// (The hivemind has no movement of its own yet, so this is its only way of moving.)
-fn hivemind_flee(
-    time: Res<Time>,
-    player: Single<&Transform, With<Player>>,
-    mut hiveminds: Query<
-        (&mut Transform, &MoveSpeed),
-        (With<Hivemind>, With<Scared>, Without<Player>),
-    >,
-    bricks: Query<&Transform, (With<Brick>, Without<Hivemind>, Without<Player>)>,
-) {
-    let dt = time.delta_secs().min(1. / 30.);
-
-    for (mut tf, speed) in &mut hiveminds {
-        let away = (tf.translation.x - player.translation.x).signum();
-        tf.translation.x += away * speed.0 * FLEE_SPEED_MULT * dt;
-
-        // Don't drift through the terrain
-        for brick in &bricks {
-            let d = (tf.translation - brick.translation).truncate();
-            let pen = (HIVEMIND_SIZE + Vec2::splat(TILE_SIZE)) / 2. - d.abs();
-            if pen.x > 0.01 && pen.y > 0.01 {
-                tf.translation.x += pen.x * d.signum().x;
-            }
-        }
-
-        // Don't leave the level
-        let half_w = HIVEMIND_SIZE.x / 2.;
-        tf.translation.x = tf
-            .translation
-            .x
-            .clamp(LEVEL_LEFT + half_w, LEVEL_RIGHT - half_w);
-    }
-}
-/*
 fn hivemind_ai(
     time: Res<Time>,
-    player: Single<&Transform, With<Player>>,
-    mut hivemind: Single<
+    player: Single<(&Transform, &Hitbox), With<Player>>,
+    mut hivemind: Query<
         (
             &mut Transform,
             &mut Hivemind,
@@ -197,25 +222,133 @@ fn hivemind_ai(
         ),
         Without<Player>,
     >,
+    bricks: Query<&Transform, (With<Brick>, Without<Hivemind>)>, // for testing collisions
 ) {
-    let (mut tf, mut hivemind, mut direction, mut patrol, state) = hivemind.into_inner();
     let dt = time.delta_secs().min(1. / 30.);
+    let (player_tf, player_box) = *player;
+    let player_pos = player_tf.translation.truncate();
 
-    match *state {
-        HivemindState::Idle => {
-            
-        }
-        HivemindState::Patrol => {
-            
+    for (mut tf, mut hivemind, mut patrol, mut state) in &mut hivemind {
+        let position = tf.translation.truncate();
+
+        let to_player = player_pos - position;
+        let player_distance = to_player.length();
+
+        let mut should_bob = true;
+
+        match *state {
+            //Idle
+            HivemindState::Idle => {
+                hivemind.velocity = Vec2::ZERO;
+
+                if player_distance <= AGGRO_RANGE {
+                    *state = HivemindState::Chase;
+                }
+            }
+
+            //Patrol
+            HivemindState::Patrol => {
+                //checks if player is close enough
+                if player_distance <= AGGRO_RANGE {
+                    *state = HivemindState::Chase;
+                    hivemind.velocity = Vec2::ZERO;
+                } else {
+                    let left_bound = hivemind.hive_origin.x - PATROL_RADIUS;
+                    let right_bound = hivemind.hive_origin.x + PATROL_RADIUS;
+
+                    //turns around at patrol boundaries
+                    if position.x <= left_bound {
+                        patrol.direction = 1.;
+                    } else if position.x >= right_bound {
+                        patrol.direction = -1.;
+                    }
+
+                    hivemind.velocity.x = patrol.direction * PATROL_SPEED;
+
+                    //keeps track of remaining patrol bounds
+                    patrol.distance_remaining = if patrol.direction > 0. {
+                        right_bound - position.x
+                    } else {
+                        position.x - left_bound
+                    };
+                }
+            }
+
+            //Chase
+            HivemindState::Chase => {
+                if player_distance <= ATTACK_RANGE {
+                    *state = HivemindState::Attack;
+
+                    hivemind.attack_timer = 0.;
+                    hivemind.has_bounced = false;
+
+                    //launchs toward the player's current position
+                    hivemind.velocity = to_player.normalize_or_zero() * ATTACK_SPEED;
+                } else {
+                    //accelerates toward the player
+                    let direction = to_player.normalize_or_zero();
+                    hivemind.velocity += direction * CHASE_ACCELERATION * dt;
+                    hivemind.velocity = hivemind.velocity.clamp_length_max(CHASE_MAX_SPEED);
+                }
+
+                //changes bob speed n'at
+                hivemind.idle_timer += dt;
+                hivemind.idle_amplitude = 6.;
+                hivemind.idle_speed = 8.;
+            }
+
+            //Attack
+            HivemindState::Attack => {
+                should_bob = false;
+
+                hivemind.attack_timer += dt;
+
+                if !hivemind.has_hit_player && player_distance <= ATTACK_RANGE {
+                    hivemind.velocity = -hivemind.velocity;
+
+                    hivemind.has_hit_player = true;
+                }
+
+                //gradually slows down after the attack
+                hivemind.velocity *= (-7. * dt).exp();
+
+                //back to business
+                if hivemind.attack_timer >= ATTACK_DURATION {
+                    *state = HivemindState::Chase;
+                }
+            }
         }
 
-        HivemindState::Chase => {
-            
+        //moves the lil guy
+        tf.translation.x += hivemind.velocity.x * dt;
+        tf.translation.y += hivemind.velocity.y * dt;
+
+        //checks whether we've hit the player
+        let new_position = tf.translation.truncate();
+
+        if *state == HivemindState::Attack && !hivemind.has_bounced {
+            if overlaps(new_position, HIVEMIND_SIZE, player_pos, player_box.0) {
+                hivemind.velocity = -hivemind.velocity;
+                hivemind.has_bounced = true;
+            }
         }
 
-        HivemindState::Attack => {
-            
+        //animation handler
+        if should_bob {
+            if *state != HivemindState::Chase {
+                hivemind.idle_amplitude = 4.;
+                hivemind.idle_speed = 3.;
+            }
+
+            hivemind.idle_timer += dt;
+        }
+
+        for brick in &bricks {
+            resolve_brick_collision(
+                &mut tf,
+                &mut hivemind.velocity,
+                brick.translation.truncate(),
+            );
         }
     }
 }
-*/

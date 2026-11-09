@@ -2,8 +2,7 @@ use bevy::prelude::*;
 use rand::Rng;
 
 use crate :: {
-    GameState, LEVEL_BOTTOM, LEVEL_LEFT, LEVEL_RIGHT, TILE_SIZE,
-    combat::HitFlashImage,
+    GameState, LEVEL_BOTTOM, TILE_SIZE,
     loading::{ LoadingAssets, despawn_with },
     stats::{ GERALD, GERALD_SPEED, HitCooldown, Hitbox, MoveSpeed, Stompable, },
     player::Player,
@@ -32,7 +31,6 @@ pub struct Gerald {
 struct GeraldSheet {
     sprite_sheet: Handle<Image>,
     layout: Handle<TextureAtlasLayout>,
-    hit: Handle<Image>,
 }
 
 #[derive(Component, Default, PartialEq, Eq)]
@@ -86,7 +84,6 @@ fn load_gerald(
     mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
 ) {
     let sprite_sheet: Handle<Image> = asset_server.load("enemy/gerald_idle_sheet.png");
-    let hit: Handle<Image> = asset_server.load("enemy/gerald_hit.png");
 
     let layout = TextureAtlasLayout::from_grid(
         UVec2::new(32, 32), // Frame dimensions
@@ -98,9 +95,8 @@ fn load_gerald(
     let layout = texture_atlas_layouts.add(layout);
 
     loading_assets.0.push(sprite_sheet.clone().untyped());
-    loading_assets.0.push(hit.clone().untyped());
 
-    commands.insert_resource(GeraldSheet {sprite_sheet, layout, hit});
+    commands.insert_resource(GeraldSheet {sprite_sheet, layout});
 }
 
 fn spawn_gerald(mut commands: Commands, sheet: Res<GeraldSheet>) {
@@ -119,10 +115,6 @@ fn spawn_gerald(mut commands: Commands, sheet: Res<GeraldSheet>) {
         GERALD.bundle(),
         Hitbox(GERALD_SIZE),
         HitCooldown::default(),
-        HitFlashImage {
-            normal: sheet.sprite_sheet.clone(),
-            flash: sheet.hit.clone(),
-        },
         GeraldDirection::default(),
         GeraldPatrol {
             distance_remaining: 0.,
