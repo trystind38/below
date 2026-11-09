@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use rand::Rng;
 
 use crate :: {
-    GameState, LEVEL_BOTTOM, TILE_SIZE,
+    GameState, LEVEL_BOTTOM, LEVEL_LEFT, LEVEL_RIGHT, TILE_SIZE,
     loading::{ LoadingAssets, despawn_with },
     stats::{ GERALD, GERALD_SPEED, HitCooldown, Hitbox, MoveSpeed, Stompable, },
     player::Player,
