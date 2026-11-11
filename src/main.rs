@@ -6,6 +6,8 @@ mod astar {
 mod burst_meter;
 mod camera;
 mod combat;
+mod forcefield;
+mod shining_road;
 mod gun;
 mod level;
 mod loading;
@@ -102,6 +104,8 @@ fn main() {
             teeth::TeethPlugin,
             burst_meter::BurstMeterPlugin,
             light_burst::LightBurstPlugin,
+            forcefield::ForceFieldPlugin,
+            shining_road::ShiningRoadPlugin,
             proc_gen::terrain_features::TerrainFeaturesPlugin,
         ))
         // Run the game

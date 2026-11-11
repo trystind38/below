@@ -2,11 +2,12 @@ use bevy::prelude::*;
 use rand::Rng;
 
 use crate :: {
-    GameState, LEVEL_BOTTOM, TILE_SIZE,
+    GameState, LEVEL_BOTTOM, LEVEL_LEFT, LEVEL_RIGHT, TILE_SIZE,
     loading::{ LoadingAssets, despawn_with },
     stats::{ GERALD, GERALD_SPEED, HitCooldown, Hitbox, MoveSpeed, Stompable, },
     player::Player,
     level::Brick,
+    shining_road::{ FLEE_SPEED_MULT, Scared },
 };
 use crate::{ sound::SoundEvent, stats::{ GERALD_SIGHT_RANGE, Health } };
 
@@ -179,13 +180,44 @@ fn gerald_ai(
         &mut GeraldDirection,
         &mut GeraldPatrol,
         &mut GeraldState,
+        Has<Scared>,
     ),
         Without<Player>,
     >,
     bricks: Query<&Transform, (With<Brick>, Without<Gerald>)>, // for testing collisions
 ) {
-    let (mut tf, mut gerald, mut direction, mut patrol, state) = gerald.into_inner();
+    let (mut tf, mut gerald, mut direction, mut patrol, state, scared) = gerald.into_inner();
     let dt = time.delta_secs().min(1. / 30.);
+
+    // Shining Road: a scared Gerald runs away from the player and does nothing else
+    if scared {
+        let away = (tf.translation.x - player.translation.x).signum();
+        gerald.velocity.x = away * GERALD_SPEED * FLEE_SPEED_MULT;
+        *direction = if away > 0. {
+            GeraldDirection::Right
+        } else {
+            GeraldDirection::Left
+        };
+
+        tf.translation.x += gerald.velocity.x * dt;
+
+        // Same collision check as the other states
+        for brick in &bricks {
+            let (pen, push) = penetration(tf.translation, brick.translation);
+            if pen.x > 0.01 && pen.y > 0.01 {
+                tf.translation.x += pen.x * push.x;
+                gerald.velocity.x = 0.;
+            }
+        }
+
+        // Don't run out of the level
+        let half_w = GERALD_SIZE.x / 2.;
+        tf.translation.x = tf
+            .translation
+            .x
+            .clamp(LEVEL_LEFT + half_w, LEVEL_RIGHT - half_w);
+        return;
+    }
 
     match *state {
         // Idle - Gerald wil stand still. Unlikely that he ever has to go into this state.

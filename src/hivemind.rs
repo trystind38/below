@@ -2,12 +2,12 @@ use bevy::prelude::*;
 use rand::Rng;
 
 use crate :: {
-    GameState, LEVEL_BOTTOM, TILE_SIZE,
+    GameState, LEVEL_BOTTOM, LEVEL_LEFT, LEVEL_RIGHT, TILE_SIZE,
+    level::Brick,
     loading::{ LoadingAssets, despawn_with },
     stats::{ HIVEMIND, HitCooldown, Hitbox, MoveSpeed, Health, Damage, },
     player::Player,
     hivemind_controller::HIVE_SIZE,
-    level::Brick,
 };
 
 const SPRITE_SCALE: f32 = 2.;
@@ -349,5 +349,42 @@ fn hivemind_ai(
                 brick.translation.truncate(),
             );
         }
+    }
+}
+
+// Shining Road: a scared hivemind drifts away from the player.
+fn hivemind_flee(
+    time: Res<Time>,
+    player: Single<&Transform, With<crate::player::Player>>,
+    mut hiveminds: Query<
+        (&mut Transform, &MoveSpeed),
+        (With<Hivemind>, With<crate::shining_road::Scared>, Without<crate::player::Player>),
+    >,
+    bricks: Query<
+        &Transform,
+        (With<crate::level::Brick>, Without<Hivemind>, Without<crate::player::Player>),
+    >,
+) {
+    let dt = time.delta_secs().min(1. / 30.);
+
+    for (mut tf, speed) in &mut hiveminds {
+        let away = (tf.translation.x - player.translation.x).signum();
+        tf.translation.x += away * speed.0 * crate::shining_road::FLEE_SPEED_MULT * dt;
+
+        // Don't drift through the terrain
+        for brick in &bricks {
+            let d = (tf.translation - brick.translation).truncate();
+            let pen = (HIVEMIND_SIZE + Vec2::splat(TILE_SIZE)) / 2. - d.abs();
+            if pen.x > 0.01 && pen.y > 0.01 {
+                tf.translation.x += pen.x * d.signum().x;
+            }
+        }
+
+        // Don't leave the level
+        let half_w = HIVEMIND_SIZE.x / 2.;
+        tf.translation.x = tf
+            .translation
+            .x
+            .clamp(LEVEL_LEFT + half_w, LEVEL_RIGHT - half_w);
     }
 }
