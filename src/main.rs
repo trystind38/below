@@ -1,5 +1,8 @@
 use bevy::{prelude::*, window::PresentMode};
 
+mod pathfinding {
+    pub mod astar;
+}
 mod burst_meter;
 mod camera;
 mod combat;
