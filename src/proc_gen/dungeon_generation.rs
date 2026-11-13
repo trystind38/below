@@ -7,6 +7,7 @@ use crate::proc_gen::{
     hallway_gen::{carve_hallways, VertHallway},
     platform_gen::{generate_platforms, Platform},
 };
+use crate::proc_gen::terrain_features::decorate_map;
 
 
 pub struct DungeonLayout {
@@ -47,12 +48,17 @@ pub fn generate_dungeon(seed: u64) -> DungeonLayout {
         }
     }
 
-    
     // Carve hallways
     let vert_hallways = carve_hallways(&mut map, &selected_edges);
 
     // Generate vertical platforms
     let platforms = generate_platforms(&mut map, &vert_hallways, seed);
+
+    // Add terrain features to every room and horizontal hallway
+    decorate_map(&mut map, seed);
+
+    // Add hills and floating platforms to every flat floor (rooms, hallways)
+    decorate_map(&mut map, seed);
 
     DungeonLayout {
         map,
