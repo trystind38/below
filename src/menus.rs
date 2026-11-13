@@ -53,6 +53,10 @@ impl Plugin for MenuPlugin {
             (setup_slideshow_controls, spawn_slideshow,).chain(),
         )
         .add_systems(
+            OnEnter(GameState::AStar),
+            setup_basic_demo_controls,
+        )
+        .add_systems(
             OnExit(GameState::MainMenu),
             despawn_with::<MenuUi>,
         )
@@ -81,6 +85,10 @@ impl Plugin for MenuPlugin {
             (despawn_with::<MenuUi>,
             despawn_with::<SlideImage>,).chain(),
         )
+        .add_systems(
+            OnExit(GameState::AStar),
+            despawn_with::<MenuUi>,
+        )
         .add_systems(Update, (escape_navigation, next_slide.run_if(in_state(GameState::AISlideshow))));
     }
 }
@@ -94,6 +102,7 @@ fn setup_main_menu(mut commands: Commands) {
             ("Basic Demo", GameState::Playing),
             ("Proc Gen", GameState::ProcGenMenu),
             ("Slideshow", GameState::AISlideshow),
+            ("A Star", GameState::AStar),
         ],
     );
 }
