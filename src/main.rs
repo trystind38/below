@@ -1,6 +1,6 @@
 use bevy::{prelude::*, window::PresentMode};
 
-mod astar {
+mod pathfinding {
     pub mod astar;
 }
 mod burst_meter;
