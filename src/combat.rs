@@ -11,6 +11,8 @@ use crate::{
         Damage, ENEMY_HIT_COOLDOWN, Enemy, HIT_COOLDOWN, Health, HitCooldown, Hitbox,
         Invulnerable, PLAYER_STOMP_DAMAGE, Stompable,
     },
+    hivemind::HiveMember,
+    hivemind_controller::HiveSpawnQueue,
 };
 
 const BULLET_HIT_SIZE: Vec2 = Vec2::splat(6.);
@@ -221,10 +223,14 @@ fn show_enemy_hit_feedback(
 // Waits for the flash so the killing hit is still visible
 fn despawn_dead_enemies(
     mut commands: Commands,
-    enemies: Query<(Entity, &Health, Option<&HitCooldown>), With<Enemy>>,
+    mut spawn_queue: ResMut<HiveSpawnQueue>,
+    enemies: Query<( Entity, &Health, Option<&HitCooldown>, Option<&HiveMember>,), With<Enemy>>,
 ) {
-    for (entity, health, cooldown) in &enemies {
+    for (entity, health, cooldown, hive_member) in &enemies {
         if health.current <= 0. && !cooldown.is_some_and(is_flashing) {
+            if let Some(hive_member) = hive_member {
+                spawn_queue.0.push(hive_member.hive);
+            }
             commands.entity(entity).despawn();
         }
     }
