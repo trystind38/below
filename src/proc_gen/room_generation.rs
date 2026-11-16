@@ -1,9 +1,9 @@
-use bevy::{prelude::*, window::PrimaryWindow};
-use rand::{rngs::StdRng, Rng, SeedableRng};
 use crate::{
     GameState,
     loading::{LoadingAssets, despawn_with},
 };
+use bevy::{prelude::*, window::PrimaryWindow};
+use rand::{Rng, SeedableRng, rngs::StdRng};
 
 struct SeededRng(u64);
 
@@ -72,17 +72,22 @@ pub struct RoomMap {
 
 impl Room {
     pub fn new(x: f64, y: f64, width: f64, height: f64) -> Self {
-        Self { x, y, width, height }
+        Self {
+            x,
+            y,
+            width,
+            height,
+        }
     }
 
     pub fn intersects(&self, other: &Room) -> bool {
-        self.x < other.x + other.width &&
-        self.x + self.width > other.x &&
-        self.y < other.y + other.height &&
-        self.y + self.height > other.y
-    }   
+        self.x < other.x + other.width
+            && self.x + self.width > other.x
+            && self.y < other.y + other.height
+            && self.y + self.height > other.y
+    }
 
-    pub fn center(&self) -> (f64, f64) {    
+    pub fn center(&self) -> (f64, f64) {
         (self.x + self.width / 2.0, self.y + self.height / 2.0)
     }
 }
@@ -92,22 +97,24 @@ fn load_room(
     asset_server: Res<AssetServer>,
     mut loading_assets: ResMut<LoadingAssets>,
 ) {
-    let room_wall_image_handle: Handle<Image> = asset_server.load("tiles/rocky_stone_cold_16x16.png");
-    loading_assets.0.push(room_wall_image_handle.clone().untyped());
+    let room_wall_image_handle: Handle<Image> =
+        asset_server.load("tiles/rocky_stone_cold_16x16.png");
+    loading_assets
+        .0
+        .push(room_wall_image_handle.clone().untyped());
     commands.insert_resource(RoomWallImage(room_wall_image_handle));
 }
 
 pub fn map_rooms(seed: u64) -> RoomMap {
-
     const MAP_WIDTH: usize = 160;
     const MAP_HEIGHT: usize = 120;
     const MAX_ROOMS: usize = 12;
     // Prevent it from looping forever or getting stuck
     const MAX_ATTEMPTS: usize = 1_000;
-    const MIN_WIDTH: usize = 12;
-    const MAX_WIDTH: usize = 20;
-    const MIN_HEIGHT: usize = 8;
-    const MAX_HEIGHT: usize = 14;
+    const MIN_WIDTH: usize = 16;
+    const MAX_WIDTH: usize = 26;
+    const MIN_HEIGHT: usize = 10;
+    const MAX_HEIGHT: usize = 16;
     const GAP: f64 = 1.0;
 
     let mut map = RoomMap {
@@ -129,13 +136,8 @@ pub fn map_rooms(seed: u64) -> RoomMap {
         let x = rng.gen_range(1..=MAP_WIDTH - width - 1);
         let y = rng.gen_range(1..=MAP_HEIGHT - height - 1);
 
-        let new_room = Room::new(
-            x as f64, 
-            y as f64, 
-            width as f64, 
-            height as f64
-        );
-        
+        let new_room = Room::new(x as f64, y as f64, width as f64, height as f64);
+
         let padded_room = Room::new(
             new_room.x - GAP,
             new_room.y - GAP,
@@ -160,24 +162,22 @@ pub fn map_rooms(seed: u64) -> RoomMap {
     map
 }
 
-pub fn map_preview(
-    map: &RoomMap,
-    commands: &mut Commands,
-    wall_image: &Handle<Image>,
-) {
+pub fn map_preview(map: &RoomMap, commands: &mut Commands, wall_image: &Handle<Image>) {
     const TILE_SIZE: f32 = 32.0;
 
-    let mut room_color = Color::srgb(40.0/255.0, 52.0/255.0, 64.0/255.0,);
+    let mut room_color = Color::srgb(40.0 / 255.0, 52.0 / 255.0, 64.0 / 255.0);
     let mut yellow = true;
 
     for y in 0..map.height {
         for x in 0..map.width {
             let index = y * map.width + x;
 
-            if yellow { room_color = Color::srgb(1.0, 1.0, 1.0);} //checkpoint
+            if yellow {
+                room_color = Color::srgb(1.0, 1.0, 1.0);
+            } //checkpoint
             if x > 20 && 30 > x {
                 yellow = false;
-            }else{
+            } else {
                 yellow = false;
             }
 
@@ -202,8 +202,8 @@ pub fn map_preview(
                     0.0,
                 ),
                 RoomPreview,
-            ));      
-            room_color = Color::srgb(40.0/255.0, 52.0/255.0, 64.0/255.0,);
+            ));
+            room_color = Color::srgb(40.0 / 255.0, 52.0 / 255.0, 64.0 / 255.0);
         }
     }
 }
@@ -234,9 +234,7 @@ pub fn frame_camera(
     transform.translation.y = world_height / 2.0;
 
     if let Projection::Orthographic(orthographic) = &mut *projection {
-        orthographic.scale = (
-            world_width / window.width().max(1.0)
-        )
+        orthographic.scale = (world_width / window.width().max(1.0))
             .max(world_height / window.height().max(1.0))
             * 1.1;
     }
@@ -257,10 +255,7 @@ impl Plugin for RoomGenerationPlugin {
                 },
                 |mut commands: Commands| commands.insert_resource(ProcGenSeed::random()),
             )
-            .add_systems(
-                OnEnter(GameState::RoomGeneration),
-                setup_room_preview,
-            )
+            .add_systems(OnEnter(GameState::RoomGeneration), setup_room_preview)
             .add_systems(
                 OnExit(GameState::RoomGeneration),
                 despawn_with::<RoomPreview>,

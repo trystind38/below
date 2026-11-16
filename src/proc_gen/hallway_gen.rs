@@ -4,7 +4,7 @@ use crate::proc_gen::{
 };
 
 // Hallway gene constants; horizontal = 3 tiles, vertical = 5 tiles
-const HORIZONTAL_WIDTH: i32 = 1;
+const HORIZONTAL_WIDTH: i32 = 4;
 const VERTICAL_WIDTH: i32 = 2;
 
 pub struct VertHallway {
@@ -23,11 +23,7 @@ fn room_center(room: &Room) -> (i32, i32) {
 // Change a wall tile into an empty tile.
 fn carve_tile(map: &mut RoomMap, x: i32, y: i32) {
     // Keep the outer map boundary intact.
-    if x <= 0
-        || y <= 0
-        || x >= map.width as i32 - 1
-        || y >= map.height as i32 - 1
-    {
+    if x <= 0 || y <= 0 || x >= map.width as i32 - 1 || y >= map.height as i32 - 1 {
         return;
     }
 
@@ -38,15 +34,20 @@ fn carve_tile(map: &mut RoomMap, x: i32, y: i32) {
 // Carve a horizontal hallway between two X coordinates.
 fn carve_horizontal(map: &mut RoomMap, x1: i32, x2: i32, y: i32) {
     for x in x1.min(x2)..=x1.max(x2) {
-        for offset in -HORIZONTAL_WIDTH..=HORIZONTAL_WIDTH
-         {
+        for offset in -1..HORIZONTAL_WIDTH - 1 {
             carve_tile(map, x, y + offset);
         }
     }
 }
 
 // Carve a vertical hallway between two Y coordinates.
-fn carve_vertical(map: &mut RoomMap, y1: i32, y2: i32, x: i32, vert_hallways: &mut Vec<VertHallway>) {
+fn carve_vertical(
+    map: &mut RoomMap,
+    y1: i32,
+    y2: i32,
+    x: i32,
+    vert_hallways: &mut Vec<VertHallway>,
+) {
     let hallway = VertHallway {
         x,
         y_start: y1.min(y2),
@@ -62,16 +63,11 @@ fn carve_vertical(map: &mut RoomMap, y1: i32, y2: i32, x: i32, vert_hallways: &m
 }
 
 // Carve hallways along the selected graph edges.
-pub fn carve_hallways(
-    map: &mut RoomMap, 
-    edges: &[Edge],
-    ) -> Vec<VertHallway> {
+pub fn carve_hallways(map: &mut RoomMap, edges: &[Edge]) -> Vec<VertHallway> {
     let mut vert_hallways = Vec::new();
 
     for edge in edges {
-        let (Some(a), Some(b)) =
-            (map.rooms.get(edge.a), map.rooms.get(edge.b))
-        else {
+        let (Some(a), Some(b)) = (map.rooms.get(edge.a), map.rooms.get(edge.b)) else {
             continue;
         };
 
@@ -80,14 +76,10 @@ pub fn carve_hallways(
 
         // Calculate the overlapping tile ranges.
         let overlap_x_start = (a.x as i32).max(b.x as i32);
-        let overlap_x_end =
-            ((a.x + a.width) as i32 - 1)
-                .min((b.x + b.width) as i32 - 1);
+        let overlap_x_end = ((a.x + a.width) as i32 - 1).min((b.x + b.width) as i32 - 1);
 
         let overlap_y_start = (a.y as i32).max(b.y as i32);
-        let overlap_y_end =
-            ((a.y + a.height) as i32 - 1)
-                .min((b.y + b.height) as i32 - 1);
+        let overlap_y_end = ((a.y + a.height) as i32 - 1).min((b.y + b.height) as i32 - 1);
 
         if overlap_x_start <= overlap_x_end {
             // Rooms overlap along X: vertical hallway.

@@ -1,15 +1,18 @@
 use bevy::prelude::*;
 use rand::Rng;
 
-use crate :: {
+use crate::{
     GameState, LEVEL_BOTTOM, LEVEL_LEFT, LEVEL_RIGHT, TILE_SIZE,
-    loading::{ LoadingAssets, despawn_with },
-    stats::{ GERALD, GERALD_SPEED, HitCooldown, Hitbox, MoveSpeed, Stompable, },
-    player::Player,
     level::Brick,
-    shining_road::{ FLEE_SPEED_MULT, Scared },
+    loading::{LoadingAssets, despawn_with},
+    player::Player,
+    shining_road::{FLEE_SPEED_MULT, Scared},
+    stats::{GERALD, GERALD_SPEED, HitCooldown, Hitbox, MoveSpeed, Stompable},
 };
-use crate::{ sound::SoundEvent, stats::{ GERALD_SIGHT_RANGE, Health } };
+use crate::{
+    sound::SoundEvent,
+    stats::{GERALD_SIGHT_RANGE, Health},
+};
 
 const SPRITE_SCALE: f32 = 2.;
 const GERALD_SIZE: Vec2 = Vec2::new(32., 32.);
@@ -61,17 +64,20 @@ pub struct GeraldPlugin;
 impl Plugin for GeraldPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, load_gerald)
-            .add_systems(OnEnter(GameState::Playing), spawn_gerald)
-            .add_systems(Update, (
-                gerald_state_change,
-                update_gerald_sprite,
-            ))
-            .add_systems( // Certain functions should be in FixedUpdate, especially physics and movement related ones
-                FixedUpdate, (
+            .add_systems(
+                OnEnter(GameState::Playing),
+                spawn_gerald.run_if(crate::level::intro_only),
+            )
+            .add_systems(Update, (gerald_state_change, update_gerald_sprite))
+            .add_systems(
+                // Certain functions should be in FixedUpdate, especially physics and movement related ones
+                FixedUpdate,
+                (
                     gerald_physics, // Do physics first to hopefully avoid missing collisions
                     gerald_decision_tree,
                     gerald_ai,
-                ) .chain() // .chain() enforces the order, so .before(gerald_ai) on gerald_decision_tree is no longer needed
+                )
+                    .chain(), // .chain() enforces the order, so .before(gerald_ai) on gerald_decision_tree is no longer needed
             )
             .add_systems(OnExit(GameState::Playing), despawn_with::<Gerald>);
     }
@@ -96,7 +102,10 @@ fn load_gerald(
 
     loading_assets.0.push(sprite_sheet.clone().untyped());
 
-    commands.insert_resource(GeraldSheet {sprite_sheet, layout});
+    commands.insert_resource(GeraldSheet {
+        sprite_sheet,
+        layout,
+    });
 }
 
 fn spawn_gerald(mut commands: Commands, sheet: Res<GeraldSheet>) {
@@ -109,8 +118,12 @@ fn spawn_gerald(mut commands: Commands, sheet: Res<GeraldSheet>) {
             },
         ),
         // What location he spawns at. It's currently hard-coded so he spawns 128 units away on x and standing on the floor.
-        Transform::from_xyz(128., (LEVEL_BOTTOM + TILE_SIZE + GERALD_SIZE.y / 2.) + 320., 2.)
-            .with_scale(Vec3::splat(SPRITE_SCALE)),
+        Transform::from_xyz(
+            128.,
+            (LEVEL_BOTTOM + TILE_SIZE + GERALD_SIZE.y / 2.) + 320.,
+            2.,
+        )
+        .with_scale(Vec3::splat(SPRITE_SCALE)),
         Gerald::default(),
         GERALD.bundle(),
         Hitbox(GERALD_SIZE),
@@ -125,9 +138,7 @@ fn spawn_gerald(mut commands: Commands, sheet: Res<GeraldSheet>) {
     ));
 }
 
-fn update_gerald_sprite(
-    mut query: Query<(&GeraldDirection, &mut Sprite)>,
-) {
+fn update_gerald_sprite(mut query: Query<(&GeraldDirection, &mut Sprite)>) {
     for (state, mut sprite) in &mut query {
         if let Some(atlas) = &mut sprite.texture_atlas {
             atlas.index = match state {
@@ -174,14 +185,15 @@ fn penetration(gerald: Vec3, tile: Vec3) -> (Vec2, Vec2) {
 fn gerald_ai(
     time: Res<Time>,
     player: Single<&Transform, With<Player>>,
-    gerald: Single<(
-        &mut Transform,
-        &mut Gerald,
-        &mut GeraldDirection,
-        &mut GeraldPatrol,
-        &mut GeraldState,
-        Has<Scared>,
-    ),
+    gerald: Single<
+        (
+            &mut Transform,
+            &mut Gerald,
+            &mut GeraldDirection,
+            &mut GeraldPatrol,
+            &mut GeraldState,
+            Has<Scared>,
+        ),
         Without<Player>,
     >,
     bricks: Query<&Transform, (With<Brick>, Without<Gerald>)>, // for testing collisions
@@ -262,7 +274,8 @@ fn gerald_ai(
         // Chase - Gerald will follow player to where he sees them.
         // TODO: Can either be triggered by sight (near) or sound (further)
         GeraldState::Chase => {
-            let distance = gerald.last_known.unwrap_or(player.translation.truncate()).x - tf.translation.x;
+            let distance =
+                gerald.last_known.unwrap_or(player.translation.truncate()).x - tf.translation.x;
 
             if distance > 0. {
                 gerald.velocity.x = GERALD_SPEED;
@@ -292,7 +305,7 @@ fn gerald_ai(
             //gerald.velocity.x = 0.;
             // ^ commented out to let collision detection manage setting velocity to 0
 
-           gerald.attack_timer += dt;
+            gerald.attack_timer += dt;
 
             if gerald.attack_timer >= 0.08 {
                 gerald.attack_timer = 0.;
@@ -309,10 +322,7 @@ fn gerald_ai(
 }
 
 // Temporary state changing for demo
-fn gerald_state_change(
-    keyboard: Res<ButtonInput<KeyCode>>,
-    mut gerald: Single<&mut GeraldState>,
-) {
+fn gerald_state_change(keyboard: Res<ButtonInput<KeyCode>>, mut gerald: Single<&mut GeraldState>) {
     if keyboard.just_pressed(KeyCode::KeyU) {
         **gerald = GeraldState::Idle;
     }

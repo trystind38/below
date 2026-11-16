@@ -5,31 +5,31 @@ mod burst_meter;
 mod camera;
 mod combat;
 mod forcefield;
-mod shining_road;
-mod gun;
-mod level;
-mod loading;
-mod player;
-mod stats;
-mod health_bar;
 mod gerald;
-mod teeth;
+mod gun;
+mod health_bar;
 mod hivemind;
 mod hivemind_controller;
-mod tank_light;
-mod menus;
-mod sound;
+mod level;
 mod light_burst;
+mod loading;
+mod menus;
+mod player;
+mod shining_road;
+mod sound;
+mod stats;
+mod tank_light;
+mod teeth;
 mod proc_gen {
-    pub mod geometry;
-    pub mod mst;
-    pub mod room_generation;
-    pub mod triangulation_helpers;
-    pub mod triangulation_generation;
     pub mod dungeon_generation;
+    pub mod geometry;
     pub mod hallway_gen;
+    pub mod mst;
     pub mod platform_gen;
+    pub mod room_generation;
     pub mod terrain_features;
+    pub mod triangulation_generation;
+    pub mod triangulation_helpers;
 }
 
 const TITLE: &str = "Below - Level Demo";
@@ -64,19 +64,23 @@ enum GameState {
 fn main() {
     App::new()
         // Setup Bevy and game window
-        .add_plugins(DefaultPlugins.set(WindowPlugin {
-            primary_window: Some(Window {
-                title: String::from(TITLE),
-                resolution: (WIN_W as u32, WIN_H as u32).into(),
-                present_mode: PresentMode::AutoVsync,
-                ..default()
-            }),
-            ..default()
-            }).set(ImagePlugin::default_nearest())
+        .add_plugins(
+            DefaultPlugins
+                .set(WindowPlugin {
+                    primary_window: Some(Window {
+                        title: String::from(TITLE),
+                        resolution: (WIN_W as u32, WIN_H as u32).into(),
+                        present_mode: PresentMode::AutoVsync,
+                        ..default()
+                    }),
+                    ..default()
+                })
+                .set(ImagePlugin::default_nearest()),
         )
         .insert_resource(ClearColor(Color::Srgba(Srgba::gray(0.25))))
         // Set initial state
         .init_state::<GameState>()
+        .init_resource::<level::ActiveLevel>()
         // Add general systems
         .add_systems(OnEnter(GameState::Loading), log_state_change)
         .add_systems(OnEnter(GameState::Playing), log_state_change)

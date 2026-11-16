@@ -1,6 +1,6 @@
-use bevy::{prelude::*};
+use bevy::prelude::*;
 
-use crate::{GameState};
+use crate::GameState;
 
 #[derive(Resource, Deref, DerefMut)]
 pub struct LoadingAssets(pub Vec<UntypedHandle>);
@@ -21,12 +21,7 @@ impl Plugin for LoadingPlugin {
                     .chain()
                     .run_if(in_state(GameState::Loading)),
             )
-            .add_systems(
-                OnExit(GameState::Loading),
-                (
-                    free_loading_handles,
-                ),
-            );
+            .add_systems(OnExit(GameState::Loading), (free_loading_handles,));
     }
 }
 

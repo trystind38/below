@@ -8,14 +8,14 @@ use crate::{
 };
 
 const SEGMENT_COUNT: usize = 3;
-const SEGMENT_SIZE: Vec2 = Vec2::new(40., 16.);// size of each segment
-const SEGMENT_GAP: f32 = 6.;// gap between segments
-const BAR_MARGIN: f32 = 20.;// margin from the edge of the screen
-const FULL_COLOR: Color = Color::srgb(1., 0.3, 0.6);// pink
-const EMPTY_COLOR: Color = Color::srgb(0.25, 0.15, 0.15);//empty health is dark red
+const SEGMENT_SIZE: Vec2 = Vec2::new(40., 16.); // size of each segment
+const SEGMENT_GAP: f32 = 6.; // gap between segments
+const BAR_MARGIN: f32 = 20.; // margin from the edge of the screen
+const FULL_COLOR: Color = Color::srgb(1., 0.3, 0.6); // pink
+const EMPTY_COLOR: Color = Color::srgb(0.25, 0.15, 0.15); //empty health is dark red
 
-#[derive(Component)]// tag for each segment of the health bar
-struct HealthSegment(usize);// index of this segment in the health bar
+#[derive(Component)] // tag for each segment of the health bar
+struct HealthSegment(usize); // index of this segment in the health bar
 
 #[derive(Component)]
 struct HealthBar;

@@ -1,11 +1,11 @@
 use bevy::prelude::*;
 
 use crate::{
-    GameState, LEVEL_BOTTOM, LEVEL_LEFT, LEVEL_RIGHT, TILE_SIZE,
+    GameState, TILE_SIZE,
     camera::CameraTarget,
     combat::blink_color,
     gun::CursorWorld,
-    level::Brick,
+    level::{ActiveLevel, Brick},
     loading::{LoadingAssets, despawn_with},
     shining_road::ShiningRoad,
     sound::{SoundEvent, SoundKind},
@@ -29,7 +29,7 @@ const JUMP_FRAMES: u32 = 2;
 const FRAME_TIME: f32 = 0.1;
 const SPRITE_SCALE: f32 = 2.;
 
-const PLAYER_SIZE: Vec2 = Vec2::new(40., 64.);
+pub const PLAYER_SIZE: Vec2 = Vec2::new(40., 64.);
 
 const FACING_DEADZONE: f32 = 4.;
 
@@ -80,7 +80,13 @@ impl Plugin for PlayerPlugin {
             .add_systems(OnEnter(GameState::Playing), spawn_player)
             .add_systems(
                 Update,
-                (move_player, face_cursor, animate_player, damage_player, tint_player)
+                (
+                    move_player,
+                    face_cursor,
+                    animate_player,
+                    damage_player,
+                    tint_player,
+                )
                     .chain()
                     .in_set(PlayerSystems)
                     .run_if(in_state(GameState::Playing)),
@@ -124,7 +130,7 @@ fn load_player(
     });
 }
 
-fn spawn_player(mut commands: Commands, sheet: Res<PlayerSheet>) {
+fn spawn_player(mut commands: Commands, sheet: Res<PlayerSheet>, active: Res<ActiveLevel>) {
     commands.spawn((
         Sprite::from_atlas_image(
             sheet.walk.clone(),
@@ -134,7 +140,7 @@ fn spawn_player(mut commands: Commands, sheet: Res<PlayerSheet>) {
             },
         ),
         // Standing on the floor at the center of the first screen
-        Transform::from_xyz(0., LEVEL_BOTTOM + TILE_SIZE + PLAYER_SIZE.y / 2., 2.)
+        Transform::from_xyz(active.spawn.x, active.spawn.y, 2.)
             .with_scale(Vec3::splat(SPRITE_SCALE)),
         Player {
             facing: 1.,
@@ -151,9 +157,16 @@ fn spawn_player(mut commands: Commands, sheet: Res<PlayerSheet>) {
 }
 
 fn move_player(
+    active: Res<ActiveLevel>,
     time: Res<Time>,
     keys: Res<ButtonInput<KeyCode>>,
-    player: Single<(&mut Transform, &mut Player, &MoveSpeed, Has<Frozen>, Has<ShiningRoad>)>,
+    player: Single<(
+        &mut Transform,
+        &mut Player,
+        &MoveSpeed,
+        Has<Frozen>,
+        Has<ShiningRoad>,
+    )>,
     bricks: Query<&Transform, (With<Brick>, Without<Player>)>,
     mut sounds: MessageWriter<SoundEvent>,
 ) {
@@ -196,7 +209,10 @@ fn move_player(
         player.jump_buffer = 0.;
     }
     player.jump_buffer -= dt;
-    if !player.grounded && player.can_fastfall && keys.any_pressed([KeyCode::KeyS, KeyCode::ArrowDown]) {
+    if !player.grounded
+        && player.can_fastfall
+        && keys.any_pressed([KeyCode::KeyS, KeyCode::ArrowDown])
+    {
         player.vel.y -= FAST_FALL_KICK;
         player.can_fastfall = false;
     }
@@ -244,10 +260,11 @@ fn move_player(
     }
     // Keep the player inside the level
     let half_w = PLAYER_SIZE.x / 2.;
+
     tf.translation.x = tf
         .translation
         .x
-        .clamp(LEVEL_LEFT + half_w, LEVEL_RIGHT - half_w);
+        .clamp(active.bounds_min.x + half_w, active.bounds_max.x - half_w);
 }
 
 fn face_cursor(
@@ -318,7 +335,11 @@ fn animate_player(
         timer.tick(time.delta());
         if timer.just_finished() {
             // Play the walk cycle backwards when moving away from the cursor
-            let step = if player.vel.x * player.facing < 0. { WALK_FRAMES - 1 } else { 1 };
+            let step = if player.vel.x * player.facing < 0. {
+                WALK_FRAMES - 1
+            } else {
+                1
+            };
             atlas.index = (atlas.index + step) % WALK_FRAMES;
         }
     } else {
@@ -333,10 +354,7 @@ fn penetration(player: Vec3, tile: Vec3) -> (Vec2, Vec2) {
     (pen, d.signum())
 }
 
-fn damage_player(
-    health: Single<(&mut Health, &Player)>,
-    keys: Res<ButtonInput<KeyCode>>
-) {
+fn damage_player(health: Single<(&mut Health, &Player)>, keys: Res<ButtonInput<KeyCode>>) {
     let (mut health, _player) = health.into_inner();
     if keys.any_just_pressed([KeyCode::KeyJ]) {
         health.current = (health.current - 20.0).max(0.0);
@@ -351,7 +369,7 @@ fn damage_player(
 
 fn tint_player(
     time: Res<Time>,
-    player: Single<(&Health, &HitCooldown, &mut Sprite), With<Player>>
+    player: Single<(&Health, &HitCooldown, &mut Sprite), With<Player>>,
 ) {
     let (health, cooldown, mut sprite) = player.into_inner();
     sprite.color = if health.current <= 0. {

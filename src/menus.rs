@@ -6,6 +6,7 @@ use bevy:: {
 use crate::{
     GameState,
     loading::despawn_with,
+    level::ActiveLevel,
 };
 
 #[derive(Component)]
@@ -90,8 +91,14 @@ impl Plugin for MenuPlugin {
 }
 
 // Main menu
-fn setup_main_menu(mut commands: Commands) {
-    spawn_menu(
+fn setup_main_menu(
+    mut commands: Commands,
+    mut active: ResMut<ActiveLevel>,
+) {
+    // The existing Basic Demo button uses the default level.
+    *active = ActiveLevel::default();
+
+    let menu = spawn_menu(
         &mut commands,
         "Below",
         &[
@@ -101,6 +108,41 @@ fn setup_main_menu(mut commands: Commands) {
             ("A Star", GameState::AStar),
         ],
     );
+
+    commands.entity(menu).with_children(|parent| {
+        parent
+            .spawn((
+                Button,
+                Node {
+                    width: px(320),
+                    height: px(56),
+                    align_items: AlignItems::Center,
+                    justify_content: JustifyContent::Center,
+                    ..default()
+                },
+                BackgroundColor(Color::srgb(0.18, 0.25, 0.31)),
+            ))
+            .with_children(|button| {
+                button.spawn((
+                    Text::new("Play Procedural"),
+                    TextFont {
+                        font_size: FontSize::Px(22.0),
+                        ..default()
+                    },
+                    TextColor(Color::WHITE),
+                ));
+            })
+            .observe(
+                |_: On<Activate>,
+                 mut active: ResMut<ActiveLevel>,
+                 mut next_state: ResMut<NextState<GameState>>| {
+                    *active =
+                        ActiveLevel::procedural(rand::random::<u64>());
+
+                    next_state.set(GameState::Playing);
+                },
+            );
+    });
 }
 
 // Proc Gen menu
@@ -132,7 +174,7 @@ fn spawn_menu(
     commands: &mut Commands,
     title: &str,
     options: &[(&str, GameState)],
-) {
+) -> Entity {
     // Implementation for spawning a menu goes here
     commands
         .spawn((
@@ -188,7 +230,8 @@ fn spawn_menu(
                         },
                     );
             }
-        });
+        })
+        .id()
 }
 
 // Small Back button over the basic level

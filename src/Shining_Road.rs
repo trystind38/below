@@ -132,7 +132,9 @@ fn update_road(
 
     // the beam follows the player and fades in at the start and out at the end
     let elapsed = ROAD_TIME - road.time_left;
-    let level = (elapsed / ROAD_FADE).min(road.time_left / ROAD_FADE).clamp(0., 1.);
+    let level = (elapsed / ROAD_FADE)
+        .min(road.time_left / ROAD_FADE)
+        .clamp(0., 1.);
     let center = beam_center(player_tf.translation.truncate(), road.dir);
 
     for (_, mut tf) in &mut beams {

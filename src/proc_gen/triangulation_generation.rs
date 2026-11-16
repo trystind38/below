@@ -1,13 +1,13 @@
-use bevy::{prelude::*, window::PrimaryWindow};
 use crate::{
     GameState,
     loading::despawn_with,
     proc_gen::{
         geometry::{Edge, Point},
-        room_generation::{frame_camera, map_preview, map_rooms, ProcGenSeed, RoomWallImage},
+        room_generation::{ProcGenSeed, RoomWallImage, frame_camera, map_preview, map_rooms},
         triangulation_helpers::*,
     },
 };
+use bevy::{prelude::*, window::PrimaryWindow};
 
 #[derive(Component)]
 pub struct TriangulationPreview;
@@ -17,8 +17,11 @@ pub fn triangulate(points: &Vec<Point>) -> Vec<Edge> {
 
     let _triangle = make_triangle(
         &mut edges,
-        Point { x: -10000.0, y: 0.0 },
-        Point { x: 10000.0, y: 0.0},
+        Point {
+            x: -10000.0,
+            y: 0.0,
+        },
+        Point { x: 10000.0, y: 0.0 },
         Point { x: 0.0, y: 10000.0 },
     );
 
@@ -39,7 +42,7 @@ pub fn triangulate(points: &Vec<Point>) -> Vec<Edge> {
             Some(point) => point,
             None => continue,
         };
-        
+
         let mut a = 0;
         let mut b = 0;
         let mut a_found = false;
@@ -67,11 +70,7 @@ pub fn triangulate(points: &Vec<Point>) -> Vec<Edge> {
     result_edges
 }
 
-fn triangulation_preview(
-    centers: &Vec<Point>,
-    edges: &Vec<Edge>,
-    commands: &mut Commands,
-)  {
+fn triangulation_preview(centers: &Vec<Point>, edges: &Vec<Edge>, commands: &mut Commands) {
     for edge in edges {
         let ax = centers[edge.a].x as f32 * 32.0;
         let ay = centers[edge.a].y as f32 * 32.0;
@@ -93,11 +92,10 @@ fn triangulation_preview(
                 custom_size: Some(Vec2::new(length, 3.0)),
                 ..default()
             },
-            Transform::from_xyz(mid_x, mid_y, 1.0)
-                .with_rotation(Quat::from_rotation_z(angle)),
+            Transform::from_xyz(mid_x, mid_y, 1.0).with_rotation(Quat::from_rotation_z(angle)),
         ));
     }
-} 
+}
 
 fn setup_triangulation_preview(
     mut commands: Commands,
@@ -111,14 +109,15 @@ fn setup_triangulation_preview(
     map_preview(&map, &mut commands, &wall_image.0);
 
     //I want points not rooms, so i'm turning rooms into points
-    let points: Vec<Point> = map.rooms.iter().map( |room|{
-        let (cx, cy) = room.center(); //getting room coordinates
-        // yay points
-        Point {
-            x: cx,
-            y: cy,
-        }
-    }).collect();
+    let points: Vec<Point> = map
+        .rooms
+        .iter()
+        .map(|room| {
+            let (cx, cy) = room.center(); //getting room coordinates
+            // yay points
+            Point { x: cx, y: cy }
+        })
+        .collect();
 
     let edges = triangulate(&points); //now we have the adges from the traingulation
 
@@ -132,12 +131,12 @@ pub struct TriangulationPlugin;
 impl Plugin for TriangulationPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
-                OnEnter(GameState::Triangulation),
-                setup_triangulation_preview,
-            )
-            .add_systems(
-                OnExit(GameState::Triangulation),
-                despawn_with::<TriangulationPreview>,
-            );
+            OnEnter(GameState::Triangulation),
+            setup_triangulation_preview,
+        )
+        .add_systems(
+            OnExit(GameState::Triangulation),
+            despawn_with::<TriangulationPreview>,
+        );
     }
 }

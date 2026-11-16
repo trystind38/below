@@ -1,8 +1,6 @@
+use bevy::prelude::IVec2;
 use std::cmp::Ordering;
 use std::collections::{BinaryHeap, HashMap};
-use bevy::prelude::IVec2;
-
-
 
 #[derive(Debug, Clone, Copy, Hash)]
 pub struct NavNode {
@@ -33,7 +31,7 @@ impl Eq for NavNode {}
 
 impl PartialOrd for NavNode {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))   
+        Some(self.cmp(other))
     }
 }
 
@@ -44,8 +42,6 @@ impl Ord for NavNode {
         .then(other.position.y.cmp(&self.position.y))
     }
 }
-
-
 
 // The position and cost of traversal
 pub type Neighbors = Vec<(IVec2, i32)>;
@@ -63,14 +59,9 @@ impl NodeGraph {
     }
 }
 
-
-
 fn manhattan_distance_heuristic(from: IVec2, to: IVec2) -> i32 {
-    (from.x - to.x).abs()
-    + (from.y - to.y).abs()
+    (from.x - to.x).abs() + (from.y - to.y).abs()
 }
-
-
 
 pub type Path = Vec<IVec2>;
 
@@ -83,22 +74,19 @@ pub fn astar_path(start: IVec2, destination: IVec2, graph: &NodeGraph) -> Option
     g_costs.insert(start, 0);
 
     // The open BinaryHeap tracks what nodes are being explored for the path.
-    open.push(
-        NavNode {
-            position: start,
-            g_cost: 0,
-            f_score: manhattan_distance_heuristic(start, destination)
-        }
-    );
+    open.push(NavNode {
+        position: start,
+        g_cost: 0,
+        f_score: manhattan_distance_heuristic(start, destination),
+    });
 
     // While there are "nodes" in that open BinaryHeap,
-    while let Some(
-        NavNode {
-            position: mut current,
-            g_cost,
-            ..
-        }
-    ) = open.pop() {
+    while let Some(NavNode {
+        position: mut current,
+        g_cost,
+        ..
+    }) = open.pop()
+    {
         // If the current node's g cost this time around is the greatest, we skip searching this node
         if g_cost > g_costs.get(&current).copied().unwrap_or(i32::MAX) {
             continue;
@@ -142,8 +130,6 @@ pub fn astar_path(start: IVec2, destination: IVec2, graph: &NodeGraph) -> Option
 
     None
 }
-
-
 
 // Old test code:
 

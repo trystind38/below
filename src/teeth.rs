@@ -3,22 +3,21 @@ use bevy::prelude::*;
 use crate::{
     GameState, LEVEL_BOTTOM, LEVEL_LEFT, LEVEL_RIGHT, LEVEL_TOP, TILE_SIZE,
     level::Brick,
-    loading::{ LoadingAssets, despawn_with },
-    player::{ Player, PlayerSystems },
-    stats::{ HIT_COOLDOWN, Health, HitCooldown, Hitbox, Invulnerable, STRAIGHT_TEETH },
+    loading::{LoadingAssets, despawn_with},
+    player::{Player, PlayerSystems},
+    stats::{HIT_COOLDOWN, Health, HitCooldown, Hitbox, Invulnerable, STRAIGHT_TEETH},
 };
-
 
 const TEETH_DRAW_SIZE: Vec2 = Vec2::new(64., 64.);
 const TEETH_SIZE: Vec2 = Vec2::new(36., 50.);
-const TEETH_BOTTOM_PADDING: f32 = 6.; 
-const TEETH_X: f32 = 640.; 
+const TEETH_BOTTOM_PADDING: f32 = 6.;
+const TEETH_X: f32 = 640.;
 
 const FIREBALL_DRAW_SIZE: Vec2 = Vec2::new(24., 24.);
 const FIREBALL_SIZE: Vec2 = Vec2::new(14., 14.);
-const FIRE_INTERVAL: f32 = 2.; 
-const FIREBALL_SPEED: f32 = 650.; 
-const FIREBALL_GRAVITY: f32 = 512.; 
+const FIRE_INTERVAL: f32 = 2.;
+const FIREBALL_SPEED: f32 = 650.;
+const FIREBALL_GRAVITY: f32 = 512.;
 const FIREBALL_DAMAGE: f32 = 10.;
 
 #[derive(Component)]
@@ -41,7 +40,10 @@ pub struct TeethPlugin;
 impl Plugin for TeethPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, load_teeth)
-            .add_systems(OnEnter(GameState::Playing), spawn_teeth)
+            .add_systems(
+                OnEnter(GameState::Playing),
+                spawn_teeth.run_if(crate::level::intro_only),
+            )
             .add_systems(
                 FixedUpdate,
                 (teeth_shoot, move_fireballs)
@@ -141,12 +143,15 @@ fn move_fireballs(
         sprite.flip_y = fireball.vel.y < 0.;
 
         let pos = tf.translation.truncate();
-        let left_level = pos.x < LEVEL_LEFT
-            || pos.x > LEVEL_RIGHT
-            || pos.y < LEVEL_BOTTOM
-            || pos.y > LEVEL_TOP;
+        let left_level =
+            pos.x < LEVEL_LEFT || pos.x > LEVEL_RIGHT || pos.y < LEVEL_BOTTOM || pos.y > LEVEL_TOP;
         let hit_wall = bricks.iter().any(|brick| {
-            overlaps(pos, FIREBALL_SIZE, brick.translation.truncate(), Vec2::splat(TILE_SIZE))
+            overlaps(
+                pos,
+                FIREBALL_SIZE,
+                brick.translation.truncate(),
+                Vec2::splat(TILE_SIZE),
+            )
         });
 
         if left_level || hit_wall {
@@ -167,7 +172,12 @@ fn fireball_hits_player(
 
     let player_pos = player_tf.translation.truncate();
     for (entity, tf) in &fireballs {
-        if !overlaps(tf.translation.truncate(), FIREBALL_SIZE, player_pos, player_box.0) {
+        if !overlaps(
+            tf.translation.truncate(),
+            FIREBALL_SIZE,
+            player_pos,
+            player_box.0,
+        ) {
             continue;
         }
 
