@@ -1,9 +1,12 @@
+use std::f32::consts::FRAC_PI_2;
+
 use bevy::prelude::*;
 
 use crate::{
-    GameState, LEVEL_BOTTOM, LEVEL_LEFT, LEVEL_RIGHT, LEVEL_TOP, TILE_SIZE,
-    level::Brick,
+    GameState, LEVEL_BOTTOM, TILE_SIZE,
+    level::{ActiveLevel, Brick, intro_only},
     loading::{LoadingAssets, despawn_with},
+    proc_gen::enemy_placement::TeethFacing,
     player::{Player, PlayerSystems},
     stats::{HIT_COOLDOWN, Health, HitCooldown, Hitbox, Invulnerable, STRAIGHT_TEETH},
 };
@@ -23,6 +26,8 @@ const FIREBALL_DAMAGE: f32 = 10.;
 #[derive(Component)]
 pub struct Teeth {
     pub fire_timer: Timer,
+    // Which way the mouth points; fireballs launch this way
+    pub dir: Vec2,
 }
 
 #[derive(Component)]
@@ -42,7 +47,10 @@ impl Plugin for TeethPlugin {
         app.add_systems(Startup, load_teeth)
             .add_systems(
                 OnEnter(GameState::Playing),
-                spawn_teeth.run_if(crate::level::intro_only),
+                (
+                    spawn_teeth.run_if(intro_only),
+                    spawn_level_teeth.run_if(not(intro_only)),
+                ),
             )
             .add_systems(
                 FixedUpdate,
@@ -77,26 +85,68 @@ fn load_teeth(
     commands.insert_resource(TeethImages { teeth, fireball });
 }
 
+// Intro level: one Teeth standing on the floor
 fn spawn_teeth(mut commands: Commands, images: Res<TeethImages>) {
+    let pos = Vec2::new(
+        TEETH_X,
+        LEVEL_BOTTOM + TILE_SIZE + TEETH_DRAW_SIZE.y / 2. - TEETH_BOTTOM_PADDING,
+    );
+    spawn_teeth_at(&mut commands, &images, pos, Vec2::Y);
+}
+
+// Procedural level: hanging from hallway ceilings and stuck to shaft walls
+fn spawn_level_teeth(mut commands: Commands, images: Res<TeethImages>, active: Res<ActiveLevel>) {
+    // Distance from the surface to the sprite's center (the art has a few px of padding at its base)
+    let inset = TEETH_DRAW_SIZE.y / 2. - TEETH_BOTTOM_PADDING;
+
+    for spawn in &active.enemies.teeth {
+        let tile = spawn.tile.as_vec2();
+        let (pos, dir) = match spawn.facing {
+            // Ceiling is the top edge of the tile
+            TeethFacing::Down => (
+                Vec2::new((tile.x + 0.5) * TILE_SIZE, (tile.y + 1.) * TILE_SIZE - inset),
+                Vec2::NEG_Y,
+            ),
+            // Wall is the tile's left edge
+            TeethFacing::Right => (
+                Vec2::new(tile.x * TILE_SIZE + inset, (tile.y + 0.5) * TILE_SIZE),
+                Vec2::X,
+            ),
+            // Wall is the tile's right edge
+            TeethFacing::Left => (
+                Vec2::new((tile.x + 1.) * TILE_SIZE - inset, (tile.y + 0.5) * TILE_SIZE),
+                Vec2::NEG_X,
+            ),
+        };
+        spawn_teeth_at(&mut commands, &images, pos, dir);
+    }
+}
+
+// `dir` is the way the mouth faces; the sprite is drawn facing up
+fn spawn_teeth_at(commands: &mut Commands, images: &TeethImages, pos: Vec2, dir: Vec2) {
+    let rotation = Quat::from_rotation_z(dir.to_angle() - FRAC_PI_2);
+    // Hitboxes don't rotate, so swap width and height when sideways
+    let hitbox = if dir.x != 0. {
+        Vec2::new(TEETH_SIZE.y, TEETH_SIZE.x)
+    } else {
+        TEETH_SIZE
+    };
+
     commands.spawn((
         Sprite {
             image: images.teeth.clone(),
             custom_size: Some(TEETH_DRAW_SIZE),
             ..default()
         },
-        // Standing on the floor
-        Transform::from_xyz(
-            TEETH_X,
-            LEVEL_BOTTOM + TILE_SIZE + TEETH_DRAW_SIZE.y / 2. - TEETH_BOTTOM_PADDING,
-            2.,
-        ),
+        Transform::from_translation(pos.extend(2.)).with_rotation(rotation),
         Teeth {
             fire_timer: Timer::from_seconds(FIRE_INTERVAL, TimerMode::Repeating),
+            dir,
         },
         // Can't be shot or stomped, but hurts on contact
         STRAIGHT_TEETH.bundle(),
         Invulnerable,
-        Hitbox(TEETH_SIZE),
+        Hitbox(hitbox),
         HitCooldown::default(),
     ));
 }
@@ -112,8 +162,8 @@ fn teeth_shoot(
             continue;
         }
 
-        // Fire out of his mouth at the top of the sprite
-        let mouth = tf.translation.truncate() + Vec2::new(0., TEETH_SIZE.y / 2.);
+        // Fire out of his mouth, whichever way it's facing
+        let mouth = tf.translation.truncate() + teeth.dir * TEETH_SIZE.y / 2.;
         commands.spawn((
             Sprite {
                 image: images.fireball.clone(),
@@ -122,7 +172,7 @@ fn teeth_shoot(
             },
             Transform::from_translation(mouth.extend(3.)),
             Fireball {
-                vel: Vec2::new(0., FIREBALL_SPEED),
+                vel: teeth.dir * FIREBALL_SPEED,
             },
         ));
     }
@@ -131,20 +181,23 @@ fn teeth_shoot(
 fn move_fireballs(
     mut commands: Commands,
     time: Res<Time>,
-    mut fireballs: Query<(Entity, &mut Transform, &mut Sprite, &mut Fireball)>,
+    active: Res<ActiveLevel>,
+    mut fireballs: Query<(Entity, &mut Transform, &mut Fireball)>,
     bricks: Query<&Transform, (With<Brick>, Without<Fireball>)>,
 ) {
     let dt = time.delta_secs();
-    for (entity, mut tf, mut sprite, mut fireball) in &mut fireballs {
+    for (entity, mut tf, mut fireball) in &mut fireballs {
         fireball.vel.y -= FIREBALL_GRAVITY * dt;
         tf.translation += (fireball.vel * dt).extend(0.);
 
-        // Flame trails behind it, so flip once it starts falling
-        sprite.flip_y = fireball.vel.y < 0.;
+        // Flame trails behind it, so point the sprite (drawn flying up) along its velocity
+        if fireball.vel.length_squared() > 1. {
+            tf.rotation = Quat::from_rotation_z(fireball.vel.to_angle() - FRAC_PI_2);
+        }
 
         let pos = tf.translation.truncate();
-        let left_level =
-            pos.x < LEVEL_LEFT || pos.x > LEVEL_RIGHT || pos.y < LEVEL_BOTTOM || pos.y > LEVEL_TOP;
+        let (min, max) = (active.bounds_min, active.bounds_max);
+        let left_level = pos.x < min.x || pos.x > max.x || pos.y < min.y || pos.y > max.y;
         let hit_wall = bricks.iter().any(|brick| {
             overlaps(
                 pos,

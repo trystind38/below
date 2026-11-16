@@ -9,7 +9,8 @@ use crate::{
     LEVEL_BOTTOM, LEVEL_LEFT, LEVEL_RIGHT, LEVEL_TOP,
     player::PLAYER_SIZE,
     proc_gen::{
-        dungeon_generation::generate_dungeon,
+        dungeon_generation::{DungeonLayout, generate_dungeon},
+        enemy_placement::{EnemySpawns, place_enemies},
         room_generation::{RoomMap, TileType},
     },
 };
@@ -19,6 +20,10 @@ pub struct Brick;
 
 #[derive(Component)]
 pub struct Background;
+
+// Wall tile drawn for looks only: fully surrounded by other walls, so it has no Brick/collision
+#[derive(Component)]
+pub struct BuriedTile;
 
 #[derive(Resource)]
 pub struct BackgroundImage(Handle<Image>);
@@ -31,6 +36,8 @@ pub struct ActiveLevel {
     pub spawn: Vec2,
     pub bounds_min: Vec2,
     pub bounds_max: Vec2,
+    // Where to spawn enemies on a procedural map (empty for the intro level)
+    pub enemies: EnemySpawns,
 }
 
 pub struct LevelPlugin;
@@ -40,7 +47,11 @@ impl Plugin for LevelPlugin {
             .add_systems(OnEnter(GameState::Playing), setup_level)
             .add_systems(
                 OnExit(GameState::Playing),
-                (despawn_with::<Brick>, despawn_with::<Background>),
+                (
+                    despawn_with::<Brick>,
+                    despawn_with::<BuriedTile>,
+                    despawn_with::<Background>,
+                ),
             );
     }
 }
@@ -83,16 +94,29 @@ fn setup_level(
 
         for y in 0..map.height {
             for x in 0..map.width {
-                if matches!(map.tiles[y * map.width + x], TileType::Wall) {
-                    spawn_tile(
-                        &mut commands,
-                        &brick_image,
-                        Vec3::new(
-                            (x as f32 + 0.5) * TILE_SIZE,
-                            (y as f32 + 0.5) * TILE_SIZE,
-                            1.,
-                        ),
-                    );
+                if !matches!(map.tiles[y * map.width + x], TileType::Wall) {
+                    continue;
+                }
+                let translation = Vec3::new(
+                    (x as f32 + 0.5) * TILE_SIZE,
+                    (y as f32 + 0.5) * TILE_SIZE,
+                    1.,
+                );
+
+                // Every collision system loops over all Bricks, and ~90% of wall tiles are buried in
+                // solid rock where nothing can reach them. Draw those but leave them out of collision.
+                if touches_open_space(map, x, y) {
+                    spawn_tile(&mut commands, &brick_image, translation);
+                } else {
+                    commands.spawn((
+                        Sprite {
+                            image: brick_image.0.clone(),
+                            custom_size: Some(Vec2::splat(TILE_SIZE)),
+                            ..default()
+                        },
+                        Transform::from_translation(translation),
+                        BuriedTile,
+                    ));
                 }
             }
         }
@@ -177,6 +201,21 @@ fn setup_level(
     spawn_tile(&mut commands, &brick_image, t);
 }
 
+// True if any of the 8 tiles around (x, y) is open. Off the map counts as solid.
+// Diagonals matter: an entity's box can clip a wall's corner from a diagonal tile.
+fn touches_open_space(map: &RoomMap, x: usize, y: usize) -> bool {
+    (-1..=1).any(|dy: i32| {
+        (-1..=1).any(|dx: i32| {
+            let (nx, ny) = (x as i32 + dx, y as i32 + dy);
+            nx >= 0
+                && ny >= 0
+                && (nx as usize) < map.width
+                && (ny as usize) < map.height
+                && matches!(map.tiles[ny as usize * map.width + nx as usize], TileType::Empty)
+        })
+    })
+}
+
 // Adapted from CS1666_examples
 pub fn spawn_tile(commands: &mut Commands, brick_image: &Res<BrickImage>, translation: Vec3) {
     commands
@@ -202,20 +241,27 @@ impl Default for ActiveLevel {
             spawn: Vec2::new(0., LEVEL_BOTTOM + TILE_SIZE + PLAYER_SIZE.y / 2.),
             bounds_min: Vec2::new(LEVEL_LEFT, LEVEL_BOTTOM),
             bounds_max: Vec2::new(LEVEL_RIGHT, LEVEL_TOP),
+            enemies: EnemySpawns::default(),
         }
     }
 }
 
 impl ActiveLevel {
     pub fn procedural(seed: u64) -> Self {
-        let mut map = generate_dungeon(seed).map;
+        let DungeonLayout {
+            mut map,
+            vert_hallways,
+            horz_hallways,
+            ..
+        } = generate_dungeon(seed);
         info!("Playable dungeon seed: {seed}");
 
         // Choose the room nearest the map's upper-left corner.
-        let room = map
+        let (start_room, room) = map
             .rooms
             .iter()
-            .min_by(|a, b| {
+            .enumerate()
+            .min_by(|(_, a), (_, b)| {
                 let a_distance = a.x.powi(2) + (map.height as f64 - a.y - a.height).powi(2);
 
                 let b_distance = b.x.powi(2) + (map.height as f64 - b.y - b.height).powi(2);
@@ -238,6 +284,14 @@ impl ActiveLevel {
 
         let bounds_max = Vec2::new(map.width as f32 * TILE_SIZE, map.height as f32 * TILE_SIZE);
 
+        // After the landing pad so enemies see the final tiles; the start room stays empty
+        let enemies = place_enemies(&map, &horz_hallways, &vert_hallways, Some(start_room), seed);
+        info!(
+            "Placed {} teeth and {} geralds",
+            enemies.teeth.len(),
+            enemies.geralds.len()
+        );
+
         Self {
             spawn: Vec2::new(
                 (spawn_x as f32 + 0.5) * TILE_SIZE,
@@ -246,6 +300,7 @@ impl ActiveLevel {
             bounds_min: Vec2::ZERO,
             bounds_max,
             map: Some(map),
+            enemies,
         }
     }
 }
