@@ -130,31 +130,3 @@ pub fn astar_path(start: IVec2, destination: IVec2, graph: &NodeGraph) -> Option
 
     None
 }
-
-// Old test code:
-
-// // Example pathfinding with a very simple grid
-// fn main() {
-//     let node1 = IVec2::new(0,0);
-//     let node2 = IVec2::new(0,1);
-//     let node3 = IVec2::new(1,0);
-//     let node4 = IVec2::new(1,1);
-
-//     let graph = NodeGraph {
-//         neighbors: HashMap::from([
-//             (node1, vec![(node2, 1), (node3, 1)]),
-//             (node2, vec![(node1, 1), (node4, 1)]),
-//             (node3, vec![(node1, 1), (node4, 1)]),
-//             (node4, vec![(node2, 1), (node3, 1)]),
-//         ])
-//     };
-
-//     let start = node1;
-//     let end = node4;
-
-//     // All that is needed is a start IVec2, destination IVec2, and a graph of neighbors: Vec<(IVec2, i32)>
-//     match astar_path(start, end, &graph) {
-//         Some(path) => println!("Path found: {:#?}", path),
-//         None => println!("No path found"),
-//     }
-// }
