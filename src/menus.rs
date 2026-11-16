@@ -53,6 +53,10 @@ impl Plugin for MenuPlugin {
             OnEnter(GameState::AISlideshow),
             (setup_slideshow_controls, spawn_slideshow,).chain(),
         )
+        // .add_systems(
+        //     OnEnter(GameState::AStar),
+        //     setup_basic_demo_controls,
+        // )
         .add_systems(
             OnExit(GameState::MainMenu),
             despawn_with::<MenuUi>,
@@ -101,6 +105,7 @@ fn setup_main_menu(
             ("Basic Demo", GameState::Playing),
             ("Proc Gen", GameState::ProcGenMenu),
             ("Slideshow", GameState::AISlideshow),
+            ("A Star", GameState::AStar),
         ],
     );
 
