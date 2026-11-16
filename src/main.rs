@@ -1,8 +1,6 @@
 use bevy::{prelude::*, window::PresentMode};
 
-mod pathfinding {
-    pub mod astar;
-}
+mod pathfinding;
 mod burst_meter;
 mod camera;
 mod combat;
@@ -60,6 +58,7 @@ enum GameState {
     Triangulation,
     Mst,
     AISlideshow,
+    AStar,
 }
 
 fn main() {
@@ -107,6 +106,7 @@ fn main() {
             forcefield::ForceFieldPlugin,
             shining_road::ShiningRoadPlugin,
             proc_gen::terrain_features::TerrainFeaturesPlugin,
+            pathfinding::astar_demo::AStarDemoPlugin,
         ))
         // Run the game
         .run();

@@ -19,17 +19,13 @@ impl NavNode {
             f_score: f_score,
         }
     }
-
-    fn f_score(&self) -> i32 {
-        self.g_cost + self.f_score
-    }
 }
 
 impl PartialEq for NavNode {
     fn eq(&self, other: &Self) -> bool {
         self.position == other.position
         && self.g_cost == other.g_cost
-        && self.f_score == other.g_cost
+        && self.f_score == other.f_score
     }
 }
 
@@ -43,20 +39,28 @@ impl PartialOrd for NavNode {
 
 impl Ord for NavNode {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.f_score().cmp(&other.f_score())
-        .then(self.position.x.cmp(&other.position.x))
-        .then(self.position.y.cmp(&other.position.y))
+        other.f_score.cmp(&self.f_score)
+        .then(other.position.x.cmp(&self.position.x))
+        .then(other.position.y.cmp(&self.position.y))
     }
 }
 
 
 
 // The position and cost of traversal
-type Neighbors = Vec<(IVec2, i32)>;
+pub type Neighbors = Vec<(IVec2, i32)>;
 
 // The NodeGraph contains every NavNode, represented by their IVec2, paired with their list of neighbors
-struct NodeGraph {
-    neighbors: HashMap<IVec2, Neighbors>
+pub struct NodeGraph {
+    pub neighbors: HashMap<IVec2, Neighbors>
+}
+
+impl NodeGraph {
+    pub fn new(neighbors: HashMap<IVec2, Neighbors>) -> NodeGraph {
+        NodeGraph {
+            neighbors: neighbors,
+        }
+    }
 }
 
 
@@ -68,9 +72,9 @@ fn manhattan_distance_heuristic(from: IVec2, to: IVec2) -> i32 {
 
 
 
-type Path = Vec<IVec2>;
+pub type Path = Vec<IVec2>;
 
-fn astar_path(start: IVec2, destination: IVec2, graph: &NodeGraph) -> Option<Path> {
+pub fn astar_path(start: IVec2, destination: IVec2, graph: &NodeGraph) -> Option<Path> {
     let mut open = BinaryHeap::new();
     let mut parents: HashMap<IVec2, IVec2> = HashMap::new();
     let mut g_costs: HashMap<IVec2, i32> = HashMap::new();
