@@ -5,7 +5,7 @@ use crate::{
     camera::CameraTarget,
     combat::blink_color,
     gun::CursorWorld,
-    level::ActiveLevel,
+    level::{ActiveLevel, Brick},
     loading::{LoadingAssets, despawn_with},
     shining_road::ShiningRoad,
     sound::{SoundEvent, SoundKind},

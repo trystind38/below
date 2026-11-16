@@ -1,9 +1,13 @@
-use bevy::{
+use bevy:: {
     prelude::*,
     ui_widgets::{Activate, Button},
 };
 
-use crate::{GameState, loading::despawn_with};
+use crate::{
+    GameState,
+    loading::despawn_with,
+    level::ActiveLevel,
+};
 
 #[derive(Component)]
 struct MenuUi;
@@ -21,39 +25,76 @@ pub struct MenuPlugin;
 
 impl Plugin for MenuPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(OnEnter(GameState::MainMenu), setup_main_menu)
-            .add_systems(OnEnter(GameState::ProcGenMenu), setup_proc_gen_menu)
-            .add_systems(OnEnter(GameState::Playing), setup_basic_demo_controls)
-            .add_systems(OnEnter(GameState::RoomGeneration), setup_room_controls)
-            .add_systems(OnEnter(GameState::Triangulation), setup_room_controls)
-            .add_systems(OnEnter(GameState::Mst), setup_room_controls)
-            .add_systems(
-                OnEnter(GameState::AISlideshow),
-                (setup_slideshow_controls, spawn_slideshow).chain(),
-            )
-            .add_systems(OnExit(GameState::MainMenu), despawn_with::<MenuUi>)
-            .add_systems(OnExit(GameState::ProcGenMenu), despawn_with::<MenuUi>)
-            .add_systems(OnExit(GameState::Playing), despawn_with::<MenuUi>)
-            .add_systems(OnExit(GameState::RoomGeneration), despawn_with::<MenuUi>)
-            .add_systems(OnExit(GameState::Triangulation), despawn_with::<MenuUi>)
-            .add_systems(OnExit(GameState::Mst), despawn_with::<MenuUi>)
-            .add_systems(
-                OnExit(GameState::AISlideshow),
-                (despawn_with::<MenuUi>, despawn_with::<SlideImage>).chain(),
-            )
-            .add_systems(
-                Update,
-                (
-                    escape_navigation,
-                    next_slide.run_if(in_state(GameState::AISlideshow)),
-                ),
-            );
+        app.add_systems(
+            OnEnter(GameState::MainMenu),
+            setup_main_menu,
+        )
+        .add_systems(
+            OnEnter(GameState::ProcGenMenu),
+            setup_proc_gen_menu,
+        )
+        .add_systems(
+            OnEnter(GameState::Playing),
+            setup_basic_demo_controls,
+        )
+        .add_systems(
+            OnEnter(GameState::RoomGeneration),
+            setup_room_controls,
+        )
+        .add_systems(
+            OnEnter(GameState::Triangulation),
+            setup_room_controls,
+        )
+        .add_systems(
+            OnEnter(GameState::Mst),
+            setup_room_controls,
+        )
+        .add_systems(
+            OnEnter(GameState::AISlideshow),
+            (setup_slideshow_controls, spawn_slideshow,).chain(),
+        )
+        .add_systems(
+            OnExit(GameState::MainMenu),
+            despawn_with::<MenuUi>,
+        )
+        .add_systems(
+            OnExit(GameState::ProcGenMenu),
+            despawn_with::<MenuUi>,
+        )
+        .add_systems(
+            OnExit(GameState::Playing),
+            despawn_with::<MenuUi>,
+        )
+        .add_systems(
+            OnExit(GameState::RoomGeneration),
+            despawn_with::<MenuUi>,
+        )
+        .add_systems(
+            OnExit(GameState::Triangulation),
+            despawn_with::<MenuUi>,
+        )
+        .add_systems(
+            OnExit(GameState::Mst),
+            despawn_with::<MenuUi>,
+        )
+        .add_systems(
+            OnExit(GameState::AISlideshow),
+            (despawn_with::<MenuUi>,
+            despawn_with::<SlideImage>,).chain(),
+        )
+        .add_systems(Update, (escape_navigation, next_slide.run_if(in_state(GameState::AISlideshow))));
     }
 }
 
 // Main menu
-fn setup_main_menu(mut commands: Commands) {
-    spawn_menu(
+fn setup_main_menu(
+    mut commands: Commands,
+    mut active: ResMut<ActiveLevel>,
+) {
+    // The existing Basic Demo button uses the default level.
+    *active = ActiveLevel::default();
+
+    let menu = spawn_menu(
         &mut commands,
         "Below",
         &[
@@ -62,6 +103,41 @@ fn setup_main_menu(mut commands: Commands) {
             ("Slideshow", GameState::AISlideshow),
         ],
     );
+
+    commands.entity(menu).with_children(|parent| {
+        parent
+            .spawn((
+                Button,
+                Node {
+                    width: px(320),
+                    height: px(56),
+                    align_items: AlignItems::Center,
+                    justify_content: JustifyContent::Center,
+                    ..default()
+                },
+                BackgroundColor(Color::srgb(0.18, 0.25, 0.31)),
+            ))
+            .with_children(|button| {
+                button.spawn((
+                    Text::new("Play Procedural"),
+                    TextFont {
+                        font_size: FontSize::Px(22.0),
+                        ..default()
+                    },
+                    TextColor(Color::WHITE),
+                ));
+            })
+            .observe(
+                |_: On<Activate>,
+                 mut active: ResMut<ActiveLevel>,
+                 mut next_state: ResMut<NextState<GameState>>| {
+                    *active =
+                        ActiveLevel::procedural(rand::random::<u64>());
+
+                    next_state.set(GameState::Playing);
+                },
+            );
+    });
 }
 
 // Proc Gen menu
@@ -83,11 +159,17 @@ fn setup_triangulation_placeholder(mut commands: Commands) {
     spawn_menu(
         &mut commands,
         "Delaunay Triangulation",
-        &[("Back", GameState::ProcGenMenu)],
+        &[
+            ("Back", GameState::ProcGenMenu),
+        ],
     );
 }
 
-fn spawn_menu(commands: &mut Commands, title: &str, options: &[(&str, GameState)]) {
+fn spawn_menu(
+    commands: &mut Commands,
+    title: &str,
+    options: &[(&str, GameState)],
+) -> Entity {
     // Implementation for spawning a menu goes here
     commands
         .spawn((
@@ -137,12 +219,14 @@ fn spawn_menu(commands: &mut Commands, title: &str, options: &[(&str, GameState)
                         ));
                     })
                     .observe(
-                        move |_: On<Activate>, mut next_state: ResMut<NextState<GameState>>| {
+                        move |_: On<Activate>,
+                              mut next_state: ResMut<NextState<GameState>>| {
                             next_state.set(destination);
                         },
                     );
             }
-        });
+        })
+        .id()
 }
 
 // Small Back button over the basic level
@@ -150,7 +234,7 @@ fn setup_basic_demo_controls(mut commands: Commands) {
     spawn_back_button(&mut commands, GameState::MainMenu);
 }
 
-// Small Back button over the generated room map
+// Small Back button over the generated room map 
 fn setup_room_controls(mut commands: Commands) {
     spawn_back_button(&mut commands, GameState::ProcGenMenu);
 }
@@ -160,7 +244,10 @@ fn setup_slideshow_controls(mut commands: Commands) {
     spawn_back_button(&mut commands, GameState::MainMenu);
 }
 
-fn spawn_back_button(commands: &mut Commands, destination: GameState) {
+fn spawn_back_button(
+    commands: &mut Commands,
+    destination: GameState,
+) {
     commands
         .spawn((
             Button,
@@ -188,7 +275,8 @@ fn spawn_back_button(commands: &mut Commands, destination: GameState) {
             ));
         })
         .observe(
-            move |_: On<Activate>, mut next_state: ResMut<NextState<GameState>>| {
+            move |_: On<Activate>,
+                  mut next_state: ResMut<NextState<GameState>>| {
                 next_state.set(destination);
             },
         );
@@ -204,11 +292,13 @@ fn escape_navigation(
     }
 
     let destination = match state.get() {
-        GameState::Playing | GameState::ProcGenMenu | GameState::AISlideshow => GameState::MainMenu,
-
-        GameState::RoomGeneration | GameState::Triangulation | GameState::Mst => {
-            GameState::ProcGenMenu
+        GameState::Playing | GameState::ProcGenMenu | GameState:: AISlideshow => {
+            GameState::MainMenu
         }
+
+        GameState::RoomGeneration
+        | GameState::Triangulation
+        | GameState::Mst => GameState::ProcGenMenu,
 
         _ => return,
     };
@@ -216,7 +306,10 @@ fn escape_navigation(
     next_state.set(destination);
 }
 
-fn spawn_slideshow(mut commands: Commands, asset_server: Res<AssetServer>) {
+fn spawn_slideshow(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+) {
     let first_slide = asset_server.load("ai_slideshow/AmoogDecisionTree.png");
 
     commands.spawn((
