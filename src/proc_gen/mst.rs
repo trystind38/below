@@ -1,14 +1,16 @@
-use bevy::prelude::*;
 use crate::{
     GameState,
     loading::despawn_with,
     proc_gen::{
-        geometry::{Edge, Point},
-        room_generation::{ProcGenSeed, RoomPreview, RoomWallImage, frame_camera, map_preview, map_rooms},
-        triangulation_generation::triangulate,
         dungeon_generation::generate_dungeon,
+        geometry::{Edge, Point},
+        room_generation::{
+            ProcGenSeed, RoomPreview, RoomWallImage, frame_camera, map_preview, map_rooms,
+        },
+        triangulation_generation::triangulate,
     },
 };
+use bevy::prelude::*;
 
 const TILE_SIZE: f32 = 32.0;
 const LINE_THICKNESS: f32 = 8.0;
@@ -21,7 +23,9 @@ struct DisjointSet {
 
 impl DisjointSet {
     fn new(size: usize) -> Self {
-        Self { parent: (0..size).collect() }
+        Self {
+            parent: (0..size).collect(),
+        }
     }
 
     // Follow parents up to the root, flattening the path as we go
@@ -72,8 +76,7 @@ pub fn all_edges(points: &[Point]) -> Vec<Edge> {
 pub fn minimum_spanning_tree(points: &[Point], edges: &[Edge]) -> Vec<Edge> {
     let mut sorted: Vec<&Edge> = edges.iter().collect();
     sorted.sort_by(|e1, e2| {
-        distance(&points[e1.a], &points[e1.b])
-            .total_cmp(&distance(&points[e2.a], &points[e2.b]))
+        distance(&points[e1.a], &points[e1.b]).total_cmp(&distance(&points[e2.a], &points[e2.b]))
     });
 
     let mut sets = DisjointSet::new(points.len());
@@ -81,7 +84,10 @@ pub fn minimum_spanning_tree(points: &[Point], edges: &[Edge]) -> Vec<Edge> {
 
     for edge in sorted {
         if sets.union(edge.a, edge.b) {
-            tree.push(Edge { a: edge.a, b: edge.b });
+            tree.push(Edge {
+                a: edge.a,
+                b: edge.b,
+            });
         }
         // A tree over n points always has n - 1 edges
         if tree.len() + 1 >= points.len() {

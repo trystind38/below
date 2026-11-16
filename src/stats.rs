@@ -2,8 +2,8 @@ use bevy::prelude::*;
 
 #[derive(Component)]
 pub struct Health {
-    pub current: f32,// health right now, goes down when hit
-    pub max: f32,// maximum health, used to reset health when player respawns
+    pub current: f32, // health right now, goes down when hit
+    pub max: f32,     // maximum health, used to reset health when player respawns
 }
 
 impl Health {
@@ -15,7 +15,7 @@ impl Health {
 }
 
 #[derive(Component)]
-pub struct Damage(pub f32);// How much damage this entity deals when it hits something.
+pub struct Damage(pub f32); // How much damage this entity deals when it hits something.
 
 #[derive(Component)]
 pub struct Invulnerable; // damage systems skip entities with this
@@ -36,9 +36,9 @@ pub struct Hitbox(pub Vec2); // full width/height in world units
 pub struct HitCooldown(pub f32); // seconds of invincibility left
 
 #[derive(Component)]
-pub struct Stompable;   // differentiates stompable enemies (Gerald) from the others
+pub struct Stompable; // differentiates stompable enemies (Gerald) from the others
 
-pub const HIT_COOLDOWN: f32 = 1.0;//1 second of invincibility after getting hit
+pub const HIT_COOLDOWN: f32 = 1.0; //1 second of invincibility after getting hit
 pub const ENEMY_HIT_COOLDOWN: f32 = 0.5;
 
 // Starting values for each character, kept in one place so

@@ -3,11 +3,11 @@ use rand::Rng;
 
 use crate::{
     GameState, LEVEL_BOTTOM, TILE_SIZE,
-    loading::{LoadingAssets, despawn_with},
-    stats::{Hitbox, Health, HitCooldown, Enemy},
-    hivemind::{spawn_hivemind_enemy, HivemindSheet, HivemindState,},
+    hivemind::{HivemindSheet, HivemindState, spawn_hivemind_enemy},
     level::Brick,
+    loading::{LoadingAssets, despawn_with},
     player::Player,
+    stats::{Enemy, Health, HitCooldown, Hitbox},
 };
 
 pub const HIVE_SCALE: f32 = 2.;
@@ -40,21 +40,24 @@ pub struct HiveSpawnQueue(pub Vec<Entity>);
 impl Plugin for HivemindControllerPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, load_hive)
-            .add_systems(OnEnter(GameState::Playing), spawn_hive)
             .add_systems(
-                Update,(   
+                OnEnter(GameState::Playing),
+                spawn_hive.run_if(crate::level::intro_only),
+            )
+            .add_systems(
+                Update,
+                (
                     spawn_hive_replacements,
                     populate_hive_flowers,
                     rustle_flowers,
                     update_flower_cooldowns,
-                ).run_if(in_state(GameState::Playing)),
+                )
+                    .run_if(in_state(GameState::Playing))
+                    .run_if(crate::level::intro_only),
             )
             .add_systems(
                 OnExit(GameState::Playing),
-                (
-                    despawn_with::<Hive>,
-                    despawn_with::<HiveFlower>,
-                ),
+                (despawn_with::<Hive>, despawn_with::<HiveFlower>),
             )
             .init_resource::<HiveSpawnQueue>();
     }
@@ -77,32 +80,24 @@ fn load_hive(
     });
 }
 
-fn spawn_hive(
-    mut commands: Commands,
-    assets: Res<HiveAssets>,
-    sheet: Res<HivemindSheet>,
-) {
-    let hive_position = Vec2::new(
-        1250.,
-        LEVEL_BOTTOM + TILE_SIZE + HIVE_SIZE.y,
-    );
+fn spawn_hive(mut commands: Commands, assets: Res<HiveAssets>, sheet: Res<HivemindSheet>) {
+    let hive_position = Vec2::new(1250., LEVEL_BOTTOM + TILE_SIZE + HIVE_SIZE.y);
 
-    let hive_entity = commands.spawn((
-        Sprite::from_image(assets.image.clone()),
-        Transform::from_xyz(
-            hive_position.x,
-            hive_position.y,
-            1.,
-        ).with_scale(Vec3::splat(HIVE_SCALE)),
-        Hive,
-        Enemy,
-        Health {
-            current: 100.,
-            max: 100.,
-        },
-        HitCooldown::default(),
-        Hitbox(HIVE_SIZE),
-    )).id();
+    let hive_entity = commands
+        .spawn((
+            Sprite::from_image(assets.image.clone()),
+            Transform::from_xyz(hive_position.x, hive_position.y, 1.)
+                .with_scale(Vec3::splat(HIVE_SCALE)),
+            Hive,
+            Enemy,
+            Health {
+                current: 100.,
+                max: 100.,
+            },
+            HitCooldown::default(),
+            Hitbox(HIVE_SIZE),
+        ))
+        .id();
 
     for i in 0..12 {
         let spawn_position = hive_position + Vec2::new((i as f32 - 5.5) * 36., HIVE_SIZE.y);
@@ -144,11 +139,11 @@ fn populate_hive_flowers(
             let surface = bricks
                 .iter()
                 .filter(|brick_tf| {
-                    (brick_tf.translation.x - sample_x).abs() <= TILE_SIZE / 2. && brick_tf.translation.y + TILE_SIZE / 2. <= hive_position.y + TILE_SIZE * 4.
+                    (brick_tf.translation.x - sample_x).abs() <= TILE_SIZE / 2.
+                        && brick_tf.translation.y + TILE_SIZE / 2.
+                            <= hive_position.y + TILE_SIZE * 4.
                 })
-                .max_by(|a, b| {
-                    a.translation.y.total_cmp(&b.translation.y)
-                });
+                .max_by(|a, b| a.translation.y.total_cmp(&b.translation.y));
 
             let Some(surface) = surface else {
                 continue;
@@ -157,19 +152,16 @@ fn populate_hive_flowers(
             let flower_x = surface.translation.x;
 
             //avoids placing flowers too close together
-            if spawned_positions.iter().any(|x| {
-                (x - flower_x).abs() < FLOWER_SPACING
-            }) {
+            if spawned_positions
+                .iter()
+                .any(|x| (x - flower_x).abs() < FLOWER_SPACING)
+            {
                 continue;
             }
 
             let ground_top = surface.translation.y + TILE_SIZE / 2.;
 
-            let flower_position = Vec3::new(
-                flower_x,
-                ground_top + TILE_SIZE / 2.,
-                1.5,
-            );
+            let flower_position = Vec3::new(flower_x, ground_top + TILE_SIZE / 2., 1.5);
 
             commands.spawn((
                 Sprite {
@@ -208,7 +200,7 @@ fn rustle_flowers(
         let reach = (player_hitbox.0 + flower_size) / 2.;
         let touching = distance.x < reach.x && distance.y < reach.y;
 
-        if touching && is_moving{
+        if touching && is_moving {
             flower.rustle_timer += time.delta_secs();
 
             if flower.rustle_timer >= RUSTLE_INTERVAL {
@@ -223,10 +215,7 @@ fn rustle_flowers(
 }
 
 //cooldown so bugs don't keep taking from the same flowers over and over again
-fn update_flower_cooldowns(
-    time: Res<Time>,
-    mut flowers: Query<&mut HiveFlower>,
-) {
+fn update_flower_cooldowns(time: Res<Time>, mut flowers: Query<&mut HiveFlower>) {
     for mut flower in &mut flowers {
         if flower.cooldown_remaining > 0. {
             flower.cooldown_remaining = (flower.cooldown_remaining - time.delta_secs()).max(0.);
@@ -247,8 +236,7 @@ fn spawn_hive_replacements(
             }
 
             let hive_position = hive_tf.translation.truncate();
-            let spawn_position =
-                hive_position + Vec2::new(0., HIVE_SIZE.y);
+            let spawn_position = hive_position + Vec2::new(0., HIVE_SIZE.y);
 
             let new_bug = spawn_hivemind_enemy(
                 &mut commands,

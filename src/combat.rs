@@ -1,18 +1,18 @@
 use bevy::prelude::*;
 
 use crate::{
-    GameState, LEVEL_BOTTOM, LEVEL_LEFT, LEVEL_RIGHT, LEVEL_TOP, TILE_SIZE,
+    GameState, TILE_SIZE,
     forcefield::{ForceField, Vulnerable, damage_taken},
-    level::Brick,
+    hivemind::HiveMember,
+    hivemind_controller::HiveSpawnQueue,
+    level::{ActiveLevel, Brick},
     loading::despawn_with,
     player::{Player, PlayerSystems},
     shining_road::Scared,
     stats::{
-        Damage, ENEMY_HIT_COOLDOWN, Enemy, HIT_COOLDOWN, Health, HitCooldown, Hitbox,
-        Invulnerable, PLAYER_STOMP_DAMAGE, Stompable,
+        Damage, ENEMY_HIT_COOLDOWN, Enemy, HIT_COOLDOWN, Health, HitCooldown, Hitbox, Invulnerable,
+        PLAYER_STOMP_DAMAGE, Stompable,
     },
-    hivemind::HiveMember,
-    hivemind_controller::HiveSpawnQueue,
 };
 
 const BULLET_HIT_SIZE: Vec2 = Vec2::splat(6.);
@@ -68,6 +68,7 @@ fn overlaps(a_pos: Vec2, a_size: Vec2, b_pos: Vec2, b_size: Vec2) -> bool {
 fn move_bullets(
     mut commands: Commands,
     time: Res<Time>,
+    active: Res<ActiveLevel>,
     mut bullets: Query<(Entity, &mut Transform, &mut Bullet)>,
     bricks: Query<&Transform, (With<Brick>, Without<Bullet>)>,
 ) {
@@ -77,10 +78,10 @@ fn move_bullets(
         bullet.life -= dt;
 
         let pos = tf.translation.truncate();
-        let left_level = pos.x < LEVEL_LEFT
-            || pos.x > LEVEL_RIGHT
-            || pos.y < LEVEL_BOTTOM
-            || pos.y > LEVEL_TOP;
+        let left_level = pos.x < active.bounds_min.x
+            || pos.x > active.bounds_max.x
+            || pos.y < active.bounds_min.y
+            || pos.y > active.bounds_max.y;
         let hit_wall = bricks.iter().any(|brick| {
             overlaps(
                 pos,
@@ -100,7 +101,13 @@ fn bullet_hits(
     mut commands: Commands,
     bullets: Query<(Entity, &Transform, &Bullet)>,
     mut enemies: Query<
-        (&Transform, &Hitbox, &mut Health, &mut HitCooldown, Has<Invulnerable>),
+        (
+            &Transform,
+            &Hitbox,
+            &mut Health,
+            &mut HitCooldown,
+            Has<Invulnerable>,
+        ),
         (With<Enemy>, Without<Bullet>),
     >,
 ) {
@@ -109,7 +116,12 @@ fn bullet_hits(
         for (enemy_tf, hitbox, mut health, mut cooldown, invulnerable) in &mut enemies {
             // Bullets pass through during i-frames
             if cooldown.0 > 0.
-                || !overlaps(pos, BULLET_HIT_SIZE, enemy_tf.translation.truncate(), hitbox.0)
+                || !overlaps(
+                    pos,
+                    BULLET_HIT_SIZE,
+                    enemy_tf.translation.truncate(),
+                    hitbox.0,
+                )
             {
                 continue;
             }
@@ -128,11 +140,28 @@ fn bullet_hits(
 fn player_enemy_contact(
     time: Res<Time>,
     player: Single<
-        (&Transform, &Hitbox, &mut Player, &mut Health, &mut HitCooldown, Has<ForceField>, Has<Vulnerable>),
+        (
+            &Transform,
+            &Hitbox,
+            &mut Player,
+            &mut Health,
+            &mut HitCooldown,
+            Has<ForceField>,
+            Has<Vulnerable>,
+        ),
         Without<Enemy>,
     >,
     mut enemies: Query<
-        (&mut Transform, &Hitbox, &Damage, &mut Health, &mut HitCooldown, Has<Invulnerable>, Has<Stompable>, Has<Scared>),
+        (
+            &mut Transform,
+            &Hitbox,
+            &Damage,
+            &mut Health,
+            &mut HitCooldown,
+            Has<Invulnerable>,
+            Has<Stompable>,
+            Has<Scared>,
+        ),
         (With<Enemy>, Without<Player>),
     >,
 ) {
@@ -150,13 +179,20 @@ fn player_enemy_contact(
     let falling = player.vel.y < 0.;
     let mut stomped = false;
 
-    for (mut enemy_tf, enemy_box, damage, mut enemy_health, mut enemy_cooldown, invulnerable, stompable, scared) in
-        &mut enemies
+    for (
+        mut enemy_tf,
+        enemy_box,
+        damage,
+        mut enemy_health,
+        mut enemy_cooldown,
+        invulnerable,
+        stompable,
+        scared,
+    ) in &mut enemies
     {
         let enemy_pos = enemy_tf.translation.truncate();
         // Dead enemies stay around for their death flash
-        if enemy_health.current <= 0.
-            || !overlaps(player_pos, player_box.0, enemy_pos, enemy_box.0)
+        if enemy_health.current <= 0. || !overlaps(player_pos, player_box.0, enemy_pos, enemy_box.0)
         {
             continue;
         }
@@ -212,11 +248,13 @@ fn is_flashing(cooldown: &HitCooldown) -> bool {
     cooldown.0 > ENEMY_HIT_COOLDOWN - FLASH_TIME
 }
 
-fn show_enemy_hit_feedback(
-    mut enemies: Query<(&HitCooldown, &mut Sprite), With<Enemy>>,
-) {
+fn show_enemy_hit_feedback(mut enemies: Query<(&HitCooldown, &mut Sprite), With<Enemy>>) {
     for (cooldown, mut sprite) in &mut enemies {
-        sprite.color = if is_flashing(cooldown) { FLASH_COLOR } else { blink_color(cooldown) };
+        sprite.color = if is_flashing(cooldown) {
+            FLASH_COLOR
+        } else {
+            blink_color(cooldown)
+        };
     }
 }
 
@@ -224,7 +262,7 @@ fn show_enemy_hit_feedback(
 fn despawn_dead_enemies(
     mut commands: Commands,
     mut spawn_queue: ResMut<HiveSpawnQueue>,
-    enemies: Query<( Entity, &Health, Option<&HitCooldown>, Option<&HiveMember>,), With<Enemy>>,
+    enemies: Query<(Entity, &Health, Option<&HitCooldown>, Option<&HiveMember>), With<Enemy>>,
 ) {
     for (entity, health, cooldown, hive_member) in &enemies {
         if health.current <= 0. && !cooldown.is_some_and(is_flashing) {

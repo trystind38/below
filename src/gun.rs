@@ -19,7 +19,12 @@ const BULLET_COLOR: Color = Color::srgb(235. / 255., 211. / 255., 32. / 255.);
 
 // Hand position from the body sprite's center, in sprite pixels
 const PIVOT: Vec2 = Vec2::new(3., -2.);
-const WALK_BOB: [Vec2; 4] = [Vec2::ZERO, Vec2::new(1., 1.), Vec2::ZERO, Vec2::new(-2., 1.)];
+const WALK_BOB: [Vec2; 4] = [
+    Vec2::ZERO,
+    Vec2::new(1., 1.),
+    Vec2::ZERO,
+    Vec2::new(-2., 1.),
+];
 const JUMP_BOB: [Vec2; 2] = [Vec2::new(1., 1.), Vec2::new(-2., 1.)];
 // Barrel tip from the hand, pointing right
 const MUZZLE: Vec2 = Vec2::new(8., 2.);
@@ -42,10 +47,7 @@ impl Plugin for GunPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<CursorWorld>()
             .add_systems(Startup, load_gun)
-            .add_systems(
-                PreUpdate,
-                track_cursor.run_if(in_state(GameState::Playing)),
-            )
+            .add_systems(PreUpdate, track_cursor.run_if(in_state(GameState::Playing)))
             .add_systems(
                 Update,
                 (attach_gun, (aim_gun, fire_gun).chain().after(PlayerSystems))
@@ -114,7 +116,11 @@ fn aim_gun(
     // Clamp to the front half so the gun never points back through the player
     let aim = cursor.0.map_or(Vec2::X * facing, |c| c - pivot_world);
     let forward_angle = aim.y.atan2(aim.x * facing).clamp(-FRAC_PI_2, FRAC_PI_2);
-    let angle = if facing > 0. { forward_angle } else { PI - forward_angle };
+    let angle = if facing > 0. {
+        forward_angle
+    } else {
+        PI - forward_angle
+    };
 
     gun_tf.translation = pivot.extend(gun_tf.translation.z);
     gun_tf.rotation = Quat::from_rotation_z(angle);

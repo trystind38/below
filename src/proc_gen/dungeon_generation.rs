@@ -1,14 +1,13 @@
-use rand::{rngs::StdRng, Rng, SeedableRng};
+use crate::proc_gen::terrain_features::decorate_map;
 use crate::proc_gen::{
     geometry::{Edge, Point},
+    hallway_gen::{VertHallway, carve_hallways},
+    mst::minimum_spanning_tree,
+    platform_gen::{Platform, generate_platforms},
     room_generation::{RoomMap, map_rooms},
     triangulation_generation::triangulate,
-    mst::minimum_spanning_tree,
-    hallway_gen::{carve_hallways, VertHallway},
-    platform_gen::{generate_platforms, Platform},
 };
-use crate::proc_gen::terrain_features::decorate_map;
-
+use rand::{Rng, SeedableRng, rngs::StdRng};
 
 pub struct DungeonLayout {
     pub map: RoomMap,
@@ -25,10 +24,14 @@ pub fn generate_dungeon(seed: u64) -> DungeonLayout {
     let mut map = map_rooms(seed);
 
     // Get the center all rooms
-    let points: Vec<Point> = map.rooms.iter().map(|room| {
-        let (cx, cy) = room.center();
-        Point { x: cx, y: cy }
-    }).collect();
+    let points: Vec<Point> = map
+        .rooms
+        .iter()
+        .map(|room| {
+            let (cx, cy) = room.center();
+            Point { x: cx, y: cy }
+        })
+        .collect();
 
     // Delaunay triangulation
     let delauney_edges = triangulate(&points);
@@ -55,9 +58,6 @@ pub fn generate_dungeon(seed: u64) -> DungeonLayout {
     let platforms = generate_platforms(&mut map, &vert_hallways, seed);
 
     // Add terrain features to every room and horizontal hallway
-    decorate_map(&mut map, seed);
-
-    // Add hills and floating platforms to every flat floor (rooms, hallways)
     decorate_map(&mut map, seed);
 
     DungeonLayout {

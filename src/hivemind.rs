@@ -1,13 +1,13 @@
 use bevy::prelude::*;
 use rand::Rng;
 
-use crate :: {
+use crate::{
     GameState, LEVEL_BOTTOM, TILE_SIZE,
-    level::Brick,
-    loading::{ LoadingAssets, despawn_with },
-    stats::{ HIVEMIND, HitCooldown, Hitbox, MoveSpeed, Health, Damage, },
-    player::Player,
     hivemind_controller::{HIVE_SIZE, Hive, HiveFlower},
+    level::Brick,
+    loading::{LoadingAssets, despawn_with},
+    player::Player,
+    stats::{Damage, HIVEMIND, Health, HitCooldown, Hitbox, MoveSpeed},
 };
 
 const SPRITE_SCALE: f32 = 2.;
@@ -60,7 +60,7 @@ pub struct Hivemind {
     pub idle_speed: f32,
     pub has_hit_player: bool,
     pub has_bounced: bool,
-   
+
     //for flower hunting
     pub flower_target: Option<Entity>,
     pub pollen_timer: f32,
@@ -119,9 +119,14 @@ impl Plugin for HivemindPlugin {
                     update_hivemind_sprite,
                     update_pollen_particles,
                 )
-                    .chain(),
+                    .chain()
+                    .run_if(in_state(GameState::Playing))
+                    .run_if(crate::level::intro_only),
             )
-            .add_systems(OnExit(GameState::Playing), despawn_with::<Hivemind>);
+            .add_systems(
+                OnExit(GameState::Playing),
+                (despawn_with::<Hivemind>, despawn_with::<PollenParticle>),
+            );
     }
 }
 
@@ -144,7 +149,10 @@ fn load_hivemind(
 
     loading_assets.0.push(sprite_sheet.clone().untyped());
 
-    commands.insert_resource(HivemindSheet {sprite_sheet, layout});
+    commands.insert_resource(HivemindSheet {
+        sprite_sheet,
+        layout,
+    });
 }
 
 pub fn spawn_hivemind(
@@ -156,10 +164,7 @@ pub fn spawn_hivemind(
     spawn_hivemind_enemy(
         commands,
         sheet,
-        Vec2::new(
-            464.,
-            LEVEL_BOTTOM + TILE_SIZE + HIVEMIND_SIZE.y / 2.,
-        ),
+        Vec2::new(464., LEVEL_BOTTOM + TILE_SIZE + HIVEMIND_SIZE.y / 2.),
         hive_position,
         hive_entity,
     );
@@ -172,37 +177,36 @@ pub fn spawn_hivemind_enemy(
     hive_position: Vec2,
     hive_entity: Entity,
 ) -> Entity {
-    commands.spawn((
-        Sprite::from_atlas_image(
-            sheet.sprite_sheet.clone(),
-            TextureAtlas {
-                layout: sheet.layout.clone(),
-                index: 0,
+    commands
+        .spawn((
+            Sprite::from_atlas_image(
+                sheet.sprite_sheet.clone(),
+                TextureAtlas {
+                    layout: sheet.layout.clone(),
+                    index: 0,
+                },
+            ),
+            Transform::from_xyz(spawn_position.x, spawn_position.y, 2.)
+                .with_scale(Vec3::splat(SPRITE_SCALE)),
+            Hivemind {
+                hive_origin: hive_position,
+                idle_origin_y: spawn_position.y,
+                idle_amplitude: 4.,
+                idle_speed: 3.,
+                is_harvester: rand::random::<f32>() < 0.5, //half of hiveminds will focus on harvesting, other half will just patrol
+                ..default()
             },
-        ),
-        Transform::from_xyz(
-            spawn_position.x,
-            spawn_position.y,
-            2.,
-        ).with_scale(Vec3::splat(SPRITE_SCALE)),
-        Hivemind {
-            hive_origin: hive_position,
-            idle_origin_y: spawn_position.y,
-            idle_amplitude: 4.,
-            idle_speed: 3.,
-            is_harvester: rand::random::<f32>() < 0.5,  //half of hiveminds will focus on harvesting, other half will just patrol
-            ..default()
-        },
-        HiveMember{hive: hive_entity,},
-        HIVEMIND.bundle(),
-        Hitbox(HIVEMIND_SIZE),
-        HitCooldown::default(),
-        HivemindPatrol {
-            distance_remaining: 0.,
-            direction: 1.,
-        },
-        HivemindState::default(),
-    )).id()
+            HiveMember { hive: hive_entity },
+            HIVEMIND.bundle(),
+            Hitbox(HIVEMIND_SIZE),
+            HitCooldown::default(),
+            HivemindPatrol {
+                distance_remaining: 0.,
+                direction: 1.,
+            },
+            HivemindState::default(),
+        ))
+        .id()
 }
 
 fn overlaps(a_pos: Vec2, a_size: Vec2, b_pos: Vec2, b_size: Vec2) -> bool {
@@ -211,11 +215,7 @@ fn overlaps(a_pos: Vec2, a_size: Vec2, b_pos: Vec2, b_size: Vec2) -> bool {
     d.x < reach.x && d.y < reach.y
 }
 
-fn resolve_brick_collision(
-    tf: &mut Transform,
-    velocity: &mut Vec2,
-    brick_pos: Vec2,
-) -> bool {
+fn resolve_brick_collision(tf: &mut Transform, velocity: &mut Vec2, brick_pos: Vec2) -> bool {
     let position = tf.translation.truncate();
     let delta = position - brick_pos;
 
@@ -242,10 +242,7 @@ fn resolve_brick_collision(
     }
 }
 
-fn update_hivemind_sprite(
-    time: Res<Time>,
-    mut query: Query<(&mut Hivemind, &mut Sprite)>,
-) {
+fn update_hivemind_sprite(time: Res<Time>, mut query: Query<(&mut Hivemind, &mut Sprite)>) {
     for (mut hivemind, mut sprite) in &mut query {
         hivemind.animation_timer += time.delta_secs();
 
@@ -279,21 +276,16 @@ fn hivemind_ai(
         (Entity, &Transform, &mut HiveFlower),
         (With<HiveFlower>, Without<Hivemind>),
     >,
-    bricks: Query<
-        &Transform,
-        (With<Brick>, Without<Hivemind>),
-    >,
+    bricks: Query<&Transform, (With<Brick>, Without<Hivemind>)>,
 ) {
     let dt = time.delta_secs().min(1. / 30.);
     let (player_tf, player_box) = *player;
     let player_pos = player_tf.translation.truncate();
 
     //if ANY hivemind can see the player, alert the entire group.
-    let player_spotted = hivemind.iter().any(
-        |(_, tf, _, _, _, _)| {
-            tf.translation.truncate().distance(player_pos) <= AGGRO_RANGE
-        }
-    );
+    let player_spotted = hivemind
+        .iter()
+        .any(|(_, tf, _, _, _, _)| tf.translation.truncate().distance(player_pos) <= AGGRO_RANGE);
 
     for (entity, mut tf, mut hivemind, mut patrol, mut state, hive_member) in &mut hivemind {
         let position = tf.translation.truncate();
@@ -305,10 +297,12 @@ fn hivemind_ai(
                 PATROLLER_ALTITUDE
             };
 
-            let ground_below = bricks.iter()
+            let ground_below = bricks
+                .iter()
                 .filter_map(|brick_tf| {
                     let brick_pos = brick_tf.translation.truncate();
-                    let horizontal_overlap = (brick_pos.x - position.x).abs() < (HIVEMIND_SIZE.x + TILE_SIZE) / 2.;
+                    let horizontal_overlap =
+                        (brick_pos.x - position.x).abs() < (HIVEMIND_SIZE.x + TILE_SIZE) / 2.;
                     let ground_top = brick_pos.y + TILE_SIZE / 2.;
 
                     if horizontal_overlap && ground_top <= position.y {
@@ -334,7 +328,9 @@ fn hivemind_ai(
         let player_distance = to_player.length();
 
         //checks whether the hive still exists and has health.
-        let hive_alive = hives.get(hive_member.hive).is_ok_and(|health| health.current > 0.);
+        let hive_alive = hives
+            .get(hive_member.hive)
+            .is_ok_and(|health| health.current > 0.);
 
         //if the hive has been destroyed, aimlessly patrol \
         if !hive_alive && !hivemind.hive_lost {
@@ -395,7 +391,8 @@ fn hivemind_ai(
         let mut should_bob = true;
 
         //cool particle effect when it has pollen
-        let has_pollen = (hivemind.flower_target.is_some() && hivemind.pollen_timer > 0.) || hivemind.returning_to_hive;
+        let has_pollen = (hivemind.flower_target.is_some() && hivemind.pollen_timer > 0.)
+            || hivemind.returning_to_hive;
 
         if has_pollen {
             hivemind.pollen_particle_timer += dt;
@@ -407,13 +404,8 @@ fn hivemind_ai(
 
                 //spawns a little purple pixel to shoot out of the bug
                 commands.spawn((
-                    Sprite::from_color(
-                        Color::srgba(0.7, 0.25, 0.95, 0.9),
-                        Vec2::splat(3.),
-                    ),
-                    Transform::from_translation(
-                        tf.translation + Vec3::new(wobble * 4., -3., 0.2),
-                    ),
+                    Sprite::from_color(Color::srgba(0.7, 0.25, 0.95, 0.9), Vec2::splat(3.)),
+                    Transform::from_translation(tf.translation + Vec3::new(wobble * 4., -3., 0.2)),
                     PollenParticle {
                         velocity: Vec2::new(wobble * 12., 18.),
                         lifetime: 0.5,
@@ -468,8 +460,8 @@ fn hivemind_ai(
                             hivemind.flower_target = None;
                             *state = HivemindState::Patrol;
                         }
-                    }
-                    else if hivemind.returning_to_hive { //returns to hive after harvesting
+                    } else if hivemind.returning_to_hive {
+                        //returns to hive after harvesting
                         let distance = hivemind.hive_origin - position;
 
                         if distance.length() <= FLOWER_REACH {
@@ -482,8 +474,8 @@ fn hivemind_ai(
                             hivemind.velocity = distance.normalize_or_zero() * FORAGE_SPEED;
                             should_bob = false;
                         }
-                    }
-                    else if hivemind.unloading {    //unloads pollen
+                    } else if hivemind.unloading {
+                        //unloads pollen
                         hivemind.velocity = Vec2::ZERO;
                         hivemind.pollen_timer += dt;
 
@@ -492,8 +484,8 @@ fn hivemind_ai(
                             hivemind.pollen_timer = 0.;
                             *state = HivemindState::Patrol;
                         }
-                    }
-                    else {  //nothing better to do
+                    } else {
+                        //nothing better to do
                         hivemind.velocity = Vec2::ZERO;
                     }
                 }
@@ -510,7 +502,7 @@ fn hivemind_ai(
                             let mut nearest: Option<(Entity, Vec2, f32)> = None;
 
                             for (flower_entity, flower_tf, flower) in &mut flowers {
-                                if flower.cooldown_remaining > 0. || flower.reserved_by.is_some(){
+                                if flower.cooldown_remaining > 0. || flower.reserved_by.is_some() {
                                     continue;
                                 }
 
@@ -519,11 +511,7 @@ fn hivemind_ai(
 
                                 if distance <= AGGRO_RANGE {
                                     if nearest.is_none() || distance < nearest.unwrap().2 {
-                                        nearest = Some((
-                                            flower_entity,
-                                            flower_pos,
-                                            distance,
-                                        ));
+                                        nearest = Some((flower_entity, flower_pos, distance));
                                     }
                                 }
                             }
@@ -561,8 +549,10 @@ fn hivemind_ai(
                                 // Distance from the bug's center to the brick's center.
                                 let center_ahead = (brick_pos.x - position.x) * patrol.direction;
                                 //converts center distance into actual edge-to-edge distance.
-                                let horizontal_gap = center_ahead - (HIVEMIND_SIZE.x + TILE_SIZE) / 2.;
-                                let vertical_overlap = (brick_pos.y - position.y).abs() < (HIVEMIND_SIZE.y + TILE_SIZE) / 2.;
+                                let horizontal_gap =
+                                    center_ahead - (HIVEMIND_SIZE.x + TILE_SIZE) / 2.;
+                                let vertical_overlap = (brick_pos.y - position.y).abs()
+                                    < (HIVEMIND_SIZE.y + TILE_SIZE) / 2.;
 
                                 center_ahead > 0. && horizontal_gap <= 25. && vertical_overlap
                             });
@@ -584,10 +574,12 @@ fn hivemind_ai(
 
                                 //finds the highest brick surface directly beneath the bug.
                                 let bug_bottom = position.y - HIVEMIND_SIZE.y / 2.;
-                                let ground_below = bricks.iter()
+                                let ground_below = bricks
+                                    .iter()
                                     .filter_map(|brick_tf| {
                                         let brick_pos = brick_tf.translation.truncate();
-                                        let horizontal_overlap = (brick_pos.x - position.x).abs() < (HIVEMIND_SIZE.x + TILE_SIZE) / 2.;
+                                        let horizontal_overlap = (brick_pos.x - position.x).abs()
+                                            < (HIVEMIND_SIZE.x + TILE_SIZE) / 2.;
                                         let ground_top = brick_pos.y + TILE_SIZE / 2.;
                                         let beneath_bug = ground_top <= bug_bottom + 4.;
 
@@ -600,15 +592,19 @@ fn hivemind_ai(
                                     .max_by(|a, b| a.total_cmp(b));
 
                                 if let Some(ground_top) = ground_below {
-                                    let target_y = ground_top + HIVEMIND_SIZE.y / 2. + desired_altitude;
+                                    let target_y =
+                                        ground_top + HIVEMIND_SIZE.y / 2. + desired_altitude;
                                     let altitude_error = target_y - position.y;
-                                    let current_altitude = position.y - HIVEMIND_SIZE.y / 2. - ground_top;
+                                    let current_altitude =
+                                        position.y - HIVEMIND_SIZE.y / 2. - ground_top;
 
                                     if current_altitude >= MAX_PATROL_ALTITUDE {
                                         // Never allow upward movement beyond the altitude limit.
-                                        hivemind.velocity.y = altitude_error.min(0.).max(-MAX_ALTITUDE_SPEED);
+                                        hivemind.velocity.y =
+                                            altitude_error.min(0.).max(-MAX_ALTITUDE_SPEED);
                                     } else {
-                                        hivemind.velocity.y = (altitude_error * ALTITUDE_GAIN).clamp(-MAX_ALTITUDE_SPEED, MAX_ALTITUDE_SPEED);
+                                        hivemind.velocity.y = (altitude_error * ALTITUDE_GAIN)
+                                            .clamp(-MAX_ALTITUDE_SPEED, MAX_ALTITUDE_SPEED);
                                     }
                                 } else {
                                     //stop flying into the sky, dang it!
@@ -616,12 +612,11 @@ fn hivemind_ai(
                                 }
                             }
 
-                            patrol.distance_remaining =
-                                if patrol.direction > 0. {
-                                    right_bound - position.x
-                                } else {
-                                    position.x - left_bound
-                                };
+                            patrol.distance_remaining = if patrol.direction > 0. {
+                                right_bound - position.x
+                            } else {
+                                position.x - left_bound
+                            };
                         }
                     }
                 }
@@ -652,9 +647,7 @@ fn hivemind_ai(
 
                     hivemind.attack_timer += dt;
 
-                    if !hivemind.has_hit_player
-                        && player_distance <= ATTACK_RANGE
-                    {
+                    if !hivemind.has_hit_player && player_distance <= ATTACK_RANGE {
                         hivemind.velocity = -hivemind.velocity;
                         hivemind.has_hit_player = true;
                     }
@@ -667,7 +660,7 @@ fn hivemind_ai(
                 }
             }
         }
-        
+
         //so the lil guy bobs up and down
         if should_bob && !hivemind.climbing {
             if *state != HivemindState::Chase {
@@ -676,7 +669,8 @@ fn hivemind_ai(
             }
 
             hivemind.idle_timer += dt;
-            tf.translation.y = hivemind.idle_origin_y + (hivemind.idle_timer * hivemind.idle_speed).sin() * hivemind.idle_amplitude;
+            tf.translation.y = hivemind.idle_origin_y
+                + (hivemind.idle_timer * hivemind.idle_speed).sin() * hivemind.idle_amplitude;
         }
     }
 }
@@ -685,13 +679,16 @@ fn hivemind_collision(
     time: Res<Time>,
     mut hiveminds: ParamSet<(
         Query<(Entity, &Transform), With<Hivemind>>,
-        Query<(
-            Entity,
-            &mut Transform,
-            &mut Hivemind,
-            &mut HivemindPatrol,
-            &HivemindState,
-        ), With<Hivemind>>,
+        Query<
+            (
+                Entity,
+                &mut Transform,
+                &mut Hivemind,
+                &mut HivemindPatrol,
+                &HivemindState,
+            ),
+            With<Hivemind>,
+        >,
     )>,
     bricks: Query<&Transform, (With<Brick>, Without<Hivemind>)>,
 ) {
@@ -701,16 +698,11 @@ fn hivemind_collision(
     let positions: Vec<(Entity, Vec2)> = hiveminds
         .p0()
         .iter()
-        .map(|(entity, tf)| {
-            (entity, tf.translation.truncate())
-        })
+        .map(|(entity, tf)| (entity, tf.translation.truncate()))
         .collect();
 
     //positions of all bricks
-    let brick_positions: Vec<Vec2> = bricks
-        .iter()
-        .map(|tf| tf.translation.truncate())
-        .collect();
+    let brick_positions: Vec<Vec2> = bricks.iter().map(|tf| tf.translation.truncate()).collect();
 
     for (entity, mut tf, mut hivemind, mut patrol, state) in hiveminds.p1().iter_mut() {
         handle_hivemind_collisions(
@@ -770,11 +762,7 @@ fn handle_hivemind_collisions(
     let mut blocked_horizontally = false;
 
     for brick_pos in brick_positions {
-        if resolve_brick_collision(
-            tf,
-            &mut hivemind.velocity,
-            *brick_pos,
-        ) {
+        if resolve_brick_collision(tf, &mut hivemind.velocity, *brick_pos) {
             blocked_horizontally = true;
         }
     }
@@ -827,7 +815,8 @@ fn handle_hivemind_collisions(
 
                 //checks whether we've passed the obstacle.
                 let obstacle_still_ahead = brick_positions.iter().any(|brick_pos| {
-                    let horizontal_gap = (brick_pos.x - tf.translation.x) * hivemind.climb_direction;
+                    let horizontal_gap =
+                        (brick_pos.x - tf.translation.x) * hivemind.climb_direction;
 
                     horizontal_gap > 0. && horizontal_gap < (HIVEMIND_SIZE.x + TILE_SIZE) / 2.
                 });
@@ -852,12 +841,7 @@ fn handle_hivemind_collisions(
 fn update_pollen_particles(
     mut commands: Commands,
     time: Res<Time>,
-    mut particles: Query<(
-        Entity,
-        &mut Transform,
-        &mut Sprite,
-        &mut PollenParticle,
-    )>,
+    mut particles: Query<(Entity, &mut Transform, &mut Sprite, &mut PollenParticle)>,
 ) {
     let dt = time.delta_secs();
 

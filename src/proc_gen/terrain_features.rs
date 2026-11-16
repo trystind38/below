@@ -1,11 +1,11 @@
 use bevy::prelude::*;
-use rand::{rngs::StdRng, Rng, SeedableRng};
+use rand::{Rng, SeedableRng, rngs::StdRng};
 
 use crate::{
     GameState, LEVEL_BOTTOM, LEVEL_LEFT, LEVEL_LEN, TILE_SIZE,
     level::{BrickImage, spawn_tile},
-    stats::Hitbox,
     proc_gen::room_generation::{RoomMap, TileType},
+    stats::Hitbox,
 };
 
 // ---------- demo level constants ----------
@@ -15,9 +15,9 @@ const START_COL: i32 = 34;
 const GROUND_HEIGHT: i32 = 1; // floor is one tile tall
 
 // ---------- generator tuning ----------
-const HEADROOM: i32 = 2;         // rows the player needs above a piece (assumes player <= 2 tiles tall)
-const MIN_RUN: i32 = 6;          // ignore floors shorter than this
-const EDGE_MARGIN: usize = 2;    // keep run ends clear (doorways, ledges)
+const HEADROOM: i32 = 2; // rows the player needs above a piece (assumes player <= 2 tiles tall)
+const MIN_RUN: i32 = 6; // ignore floors shorter than this
+const EDGE_MARGIN: usize = 2; // keep run ends clear (doorways, ledges)
 const MAX_OPEN_HEIGHT: i32 = 15; // above the tallest room (14), so only vertical shafts get skipped
 
 // '#' = tile, '.' = empty. First line is the top row.
@@ -28,10 +28,22 @@ struct Piece {
 }
 
 const PIECES: [Piece; 4] = [
-    Piece { rows: &[".##.", "####"], lift: 0 },               // small hill
-    Piece { rows: &["..##..", ".####.", "######"], lift: 0 }, // big hill
-    Piece { rows: &["#####"], lift: 3 },                      // floating platform
-    Piece { rows: &["###"], lift: 0 },                        // low step (fits 3-tall hallways)
+    Piece {
+        rows: &[".##.", "####"],
+        lift: 0,
+    }, // small hill
+    Piece {
+        rows: &["..##..", ".####.", "######"],
+        lift: 0,
+    }, // big hill
+    Piece {
+        rows: &["#####"],
+        lift: 3,
+    }, // floating platform
+    Piece {
+        rows: &["###"],
+        lift: 0,
+    }, // low step (fits 3-tall hallways)
 ];
 
 // A horizontal stretch of terrain the generator can decorate.
@@ -178,7 +190,10 @@ pub fn decorate_map(map: &mut RoomMap, seed: u64) {
     let mut new_tiles: Vec<IVec2> = Vec::new();
 
     let regions = regions_from_grid(w, h, |x, y| {
-        matches!(map.tiles[y as usize * map.width + x as usize], TileType::Wall)
+        matches!(
+            map.tiles[y as usize * map.width + x as usize],
+            TileType::Wall
+        )
     });
 
     for (cell, region) in regions {
@@ -203,7 +218,12 @@ fn tile_pos(origin: Vec2, col: i32, row: i32) -> Vec3 {
     )
 }
 
-pub fn spawn_region(commands: &mut Commands, brick: &Res<BrickImage>, origin: Vec2, tiles: &[IVec2]) {
+pub fn spawn_region(
+    commands: &mut Commands,
+    brick: &Res<BrickImage>,
+    origin: Vec2,
+    tiles: &[IVec2],
+) {
     for t in tiles {
         spawn_tile(commands, brick, tile_pos(origin, t.x, t.y));
     }
@@ -227,6 +247,9 @@ fn spawn_features(
 pub struct TerrainFeaturesPlugin;
 impl Plugin for TerrainFeaturesPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(OnEnter(GameState::Playing), spawn_features);
+        app.add_systems(
+            OnEnter(GameState::Playing),
+            spawn_features.run_if(crate::level::intro_only),
+        );
     }
 }

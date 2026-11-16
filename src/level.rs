@@ -5,6 +5,15 @@ use crate::{
     loading::{LoadingAssets, despawn_with},
 };
 
+use crate::{
+    LEVEL_BOTTOM, LEVEL_LEFT, LEVEL_RIGHT, LEVEL_TOP,
+    player::PLAYER_SIZE,
+    proc_gen::{
+        dungeon_generation::generate_dungeon,
+        room_generation::{RoomMap, TileType},
+    },
+};
+
 #[derive(Component)]
 pub struct Brick;
 
@@ -15,6 +24,14 @@ pub struct Background;
 pub struct BackgroundImage(Handle<Image>);
 #[derive(Resource)]
 pub struct BrickImage(Handle<Image>);
+
+#[derive(Resource)]
+pub struct ActiveLevel {
+    pub map: Option<RoomMap>,
+    pub spawn: Vec2,
+    pub bounds_min: Vec2,
+    pub bounds_max: Vec2,
+}
 
 pub struct LevelPlugin;
 impl Plugin for LevelPlugin {
@@ -48,7 +65,40 @@ fn setup_level(
     mut commands: Commands,
     background_image: Res<BackgroundImage>,
     brick_image: Res<BrickImage>,
+    active: Res<ActiveLevel>,
 ) {
+    if let Some(map) = &active.map {
+        let size = active.bounds_max - active.bounds_min;
+        let center = (active.bounds_min + active.bounds_max) / 2.;
+
+        commands.spawn((
+            Sprite {
+                color: Color::srgb(0.15, 0.20, 0.25),
+                custom_size: Some(size),
+                ..default()
+            },
+            Transform::from_xyz(center.x, center.y, -1.),
+            Background,
+        ));
+
+        for y in 0..map.height {
+            for x in 0..map.width {
+                if matches!(map.tiles[y * map.width + x], TileType::Wall) {
+                    spawn_tile(
+                        &mut commands,
+                        &brick_image,
+                        Vec3::new(
+                            (x as f32 + 0.5) * TILE_SIZE,
+                            (y as f32 + 0.5) * TILE_SIZE,
+                            1.,
+                        ),
+                    );
+                }
+            }
+        }
+
+        return;
+    }
     let mut y_offset = 0.;
     while y_offset < LEVEL_H {
         let mut x_offset = 0.;
@@ -125,26 +175,81 @@ fn setup_level(
     spawn_tile(&mut commands, &brick_image, t);
     t += Vec3::new(0., 32., 0.);
     spawn_tile(&mut commands, &brick_image, t);
-
 }
 
 // Adapted from CS1666_examples
-pub fn spawn_tile(
-    commands: &mut Commands,
-    brick_image: &Res<BrickImage>,
-    translation: Vec3,
-) {
-    commands.spawn((
-        Sprite {
-            image: brick_image.0.clone(),
-            custom_size: Some(Vec2::splat(TILE_SIZE)),
-            ..default()
-        },
-        Transform {
-            translation: translation,
-            ..default()
-        },
-        Brick,
-    ))
-    .insert(Brick);
+pub fn spawn_tile(commands: &mut Commands, brick_image: &Res<BrickImage>, translation: Vec3) {
+    commands
+        .spawn((
+            Sprite {
+                image: brick_image.0.clone(),
+                custom_size: Some(Vec2::splat(TILE_SIZE)),
+                ..default()
+            },
+            Transform {
+                translation: translation,
+                ..default()
+            },
+            Brick,
+        ))
+        .insert(Brick);
+}
+
+impl Default for ActiveLevel {
+    fn default() -> Self {
+        Self {
+            map: None,
+            spawn: Vec2::new(0., LEVEL_BOTTOM + TILE_SIZE + PLAYER_SIZE.y / 2.),
+            bounds_min: Vec2::new(LEVEL_LEFT, LEVEL_BOTTOM),
+            bounds_max: Vec2::new(LEVEL_RIGHT, LEVEL_TOP),
+        }
+    }
+}
+
+impl ActiveLevel {
+    pub fn procedural(seed: u64) -> Self {
+        let mut map = generate_dungeon(seed).map;
+        info!("Playable dungeon seed: {seed}");
+
+        // Choose the room nearest the map's upper-left corner.
+        let room = map
+            .rooms
+            .iter()
+            .min_by(|a, b| {
+                let a_distance = a.x.powi(2) + (map.height as f64 - a.y - a.height).powi(2);
+
+                let b_distance = b.x.powi(2) + (map.height as f64 - b.y - b.height).powi(2);
+
+                a_distance.total_cmp(&b_distance)
+            })
+            .expect("Dungeon generation produced no rooms");
+
+        let spawn_x = room.x as usize + 3;
+        let floor_y = room.y as usize;
+
+        // Reserve a small landing pad with room for the 40×64 player.
+        for x in spawn_x - 1..=spawn_x + 1 {
+            map.tiles[(floor_y - 1) * map.width + x] = TileType::Wall;
+
+            for y in floor_y..floor_y + 3 {
+                map.tiles[y * map.width + x] = TileType::Empty;
+            }
+        }
+
+        let bounds_max = Vec2::new(map.width as f32 * TILE_SIZE, map.height as f32 * TILE_SIZE);
+
+        Self {
+            spawn: Vec2::new(
+                (spawn_x as f32 + 0.5) * TILE_SIZE,
+                floor_y as f32 * TILE_SIZE + PLAYER_SIZE.y / 2.,
+            ),
+            bounds_min: Vec2::ZERO,
+            bounds_max,
+            map: Some(map),
+        }
+    }
+}
+
+pub fn intro_only(active: Res<ActiveLevel>) -> bool {
+    active.map.is_none()
 }

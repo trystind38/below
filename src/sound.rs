@@ -131,7 +131,11 @@ fn spawn_popups(
     mut sounds: MessageReader<SoundEvent>,
     popup: Option<Single<(&mut SoundPopup, &mut Sprite)>>,
 ) {
-    let Some(kind) = sounds.read().map(|s| s.kind).max_by(|a, b| a.loudness().total_cmp(&b.loudness())) else {
+    let Some(kind) = sounds
+        .read()
+        .map(|s| s.kind)
+        .max_by(|a, b| a.loudness().total_cmp(&b.loudness()))
+    else {
         return;
     };
 
