@@ -62,7 +62,6 @@ fn setup_astar_demo(
     mut commands: Commands,
     window: Single<&Window, With<PrimaryWindow>>,
     camera: Single<(&mut Transform, &mut Projection), With<Camera2d>>,
-    time: Res<Time>,
     empty_grid_image: Res<EmptyGridImage>,
 ) {
     frame_camera(window.into_inner(), camera);
@@ -79,7 +78,7 @@ fn setup_astar_demo(
 
     // Uh
     //println!("A Star Solve!!!!");
-    astar_solve(&mut commands, &grid, empty_grid_image, time);
+    astar_solve(&mut commands, &grid, empty_grid_image);
 }
 
 fn frame_camera(
@@ -228,7 +227,6 @@ fn astar_solve(
     commands: &mut Commands,
     grid: &Vec<GridCell>,
     empty_grid_image: Res<EmptyGridImage>,
-    time: Res<Time>,
 ) {
     let mut node_graph: HashMap<IVec2, Neighbors> = HashMap::new();
 
@@ -291,9 +289,7 @@ fn astar_solve(
     let path: Option<Vec<IVec2>>= astar_path(
         start,
         destination,
-        &NodeGraph {
-            neighbors: node_graph
-        }
+        &NodeGraph::new(node_graph)
     );
 
     let path = match path {
