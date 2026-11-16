@@ -22,6 +22,7 @@ mod tank_light;
 mod teeth;
 mod proc_gen {
     pub mod dungeon_generation;
+    pub mod enemy_placement;
     pub mod geometry;
     pub mod hallway_gen;
     pub mod mst;
