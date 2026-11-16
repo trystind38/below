@@ -2,8 +2,8 @@ use bevy::prelude::*;
 use rand::Rng;
 
 use crate::{
-    GameState, LEVEL_BOTTOM, LEVEL_LEFT, LEVEL_RIGHT, TILE_SIZE,
-    level::Brick,
+    GameState, LEVEL_BOTTOM, TILE_SIZE,
+    level::{ActiveLevel, Brick, intro_only},
     loading::{LoadingAssets, despawn_with},
     player::Player,
     shining_road::{FLEE_SPEED_MULT, Scared},
@@ -36,7 +36,7 @@ struct GeraldSheet {
     layout: Handle<TextureAtlasLayout>,
 }
 
-#[derive(Component, Default, PartialEq, Eq)]
+#[derive(Component, Default, Clone, PartialEq, Eq)]
 pub enum GeraldState {
     #[default]
     Idle,
@@ -66,7 +66,10 @@ impl Plugin for GeraldPlugin {
         app.add_systems(Startup, load_gerald)
             .add_systems(
                 OnEnter(GameState::Playing),
-                spawn_gerald.run_if(crate::level::intro_only),
+                (
+                    spawn_gerald.run_if(intro_only),
+                    spawn_level_geralds.run_if(not(intro_only)),
+                ),
             )
             .add_systems(Update, (gerald_state_change, update_gerald_sprite))
             .add_systems(
@@ -109,6 +112,25 @@ fn load_gerald(
 }
 
 fn spawn_gerald(mut commands: Commands, sheet: Res<GeraldSheet>) {
+    // What location he spawns at. It's currently hard-coded so he spawns 128 units away on x and drops onto the floor.
+    let pos = Vec2::new(128., (LEVEL_BOTTOM + TILE_SIZE + GERALD_SIZE.y / 2.) + 320.);
+    spawn_gerald_at(&mut commands, &sheet, pos);
+}
+
+// Procedural level: one or two per room, standing on the floor
+fn spawn_level_geralds(mut commands: Commands, sheet: Res<GeraldSheet>, active: Res<ActiveLevel>) {
+    for spawn in &active.enemies.geralds {
+        let tile = spawn.tile.as_vec2();
+        // Feet on top of the floor tile below him, plus a pixel so gravity settles him
+        let pos = Vec2::new(
+            (tile.x + 0.5) * TILE_SIZE,
+            tile.y * TILE_SIZE + GERALD_SIZE.y / 2. + 1.,
+        );
+        spawn_gerald_at(&mut commands, &sheet, pos);
+    }
+}
+
+fn spawn_gerald_at(commands: &mut Commands, sheet: &GeraldSheet, pos: Vec2) {
     commands.spawn((
         Sprite::from_atlas_image(
             sheet.sprite_sheet.clone(),
@@ -117,13 +139,7 @@ fn spawn_gerald(mut commands: Commands, sheet: Res<GeraldSheet>) {
                 index: 1,
             },
         ),
-        // What location he spawns at. It's currently hard-coded so he spawns 128 units away on x and standing on the floor.
-        Transform::from_xyz(
-            128.,
-            (LEVEL_BOTTOM + TILE_SIZE + GERALD_SIZE.y / 2.) + 320.,
-            2.,
-        )
-        .with_scale(Vec3::splat(SPRITE_SCALE)),
+        Transform::from_translation(pos.extend(2.)).with_scale(Vec3::splat(SPRITE_SCALE)),
         Gerald::default(),
         GERALD.bundle(),
         Hitbox(GERALD_SIZE),
@@ -153,25 +169,26 @@ fn update_gerald_sprite(mut query: Query<(&GeraldDirection, &mut Sprite)>) {
 
 fn gerald_physics(
     time: Res<Time>,
-    gerald: Single<(&mut Transform, &mut Gerald)>,
+    mut geralds: Query<(&mut Transform, &mut Gerald)>,
     bricks: Query<&Transform, (With<Brick>, Without<Gerald>)>, // For testing collisions
 ) {
-    let (mut tf, mut gerald) = gerald.into_inner();
     let dt = time.delta_secs().min(1. / 30.);
 
-    // Apply gravity
-    gerald.velocity.y = (gerald.velocity.y - GRAVITY * dt).min(-MAX_FALL_SPEED);
+    for (mut tf, mut gerald) in &mut geralds {
+        // Apply gravity
+        gerald.velocity.y = (gerald.velocity.y - GRAVITY * dt).min(-MAX_FALL_SPEED);
 
-    // Apply velocity for current update frame
-    tf.translation.y += gerald.velocity.y * dt;
+        // Apply velocity for current update frame
+        tf.translation.y += gerald.velocity.y * dt;
 
-    // Collision with tiles for just gravity
-    // FOR EVERY BRICK, if gerald is.. penetrating it, then stop him
-    for brick in &bricks {
-        let (pen, push) = penetration(tf.translation, brick.translation);
-        if pen.x > 0.01 && pen.y > 0.01 {
-            tf.translation.y += pen.y * push.y;
-            gerald.velocity.y = 0.;
+        // Collision with tiles for just gravity
+        // FOR EVERY BRICK, if gerald is.. penetrating it, then stop him
+        for brick in &bricks {
+            let (pen, push) = penetration(tf.translation, brick.translation);
+            if pen.x > 0.01 && pen.y > 0.01 {
+                tf.translation.y += pen.y * push.y;
+                gerald.velocity.y = 0.;
+            }
         }
     }
 }
@@ -184,84 +201,38 @@ fn penetration(gerald: Vec3, tile: Vec3) -> (Vec2, Vec2) {
 
 fn gerald_ai(
     time: Res<Time>,
+    active: Res<ActiveLevel>,
     player: Single<&Transform, With<Player>>,
-    gerald: Single<
+    mut geralds: Query<
         (
             &mut Transform,
             &mut Gerald,
             &mut GeraldDirection,
             &mut GeraldPatrol,
-            &mut GeraldState,
+            &GeraldState,
             Has<Scared>,
         ),
         Without<Player>,
     >,
     bricks: Query<&Transform, (With<Brick>, Without<Gerald>)>, // for testing collisions
 ) {
-    let (mut tf, mut gerald, mut direction, mut patrol, state, scared) = gerald.into_inner();
     let dt = time.delta_secs().min(1. / 30.);
 
-    // Shining Road: a scared Gerald runs away from the player and does nothing else
-    if scared {
-        let away = (tf.translation.x - player.translation.x).signum();
-        gerald.velocity.x = away * GERALD_SPEED * FLEE_SPEED_MULT;
-        *direction = if away > 0. {
-            GeraldDirection::Right
-        } else {
-            GeraldDirection::Left
-        };
+    for (mut tf, mut gerald, mut direction, mut patrol, state, scared) in &mut geralds {
 
-        tf.translation.x += gerald.velocity.x * dt;
-
-        // Same collision check as the other states
-        for brick in &bricks {
-            let (pen, push) = penetration(tf.translation, brick.translation);
-            if pen.x > 0.01 && pen.y > 0.01 {
-                tf.translation.x += pen.x * push.x;
-                gerald.velocity.x = 0.;
-            }
-        }
-
-        // Don't run out of the level
-        let half_w = GERALD_SIZE.x / 2.;
-        tf.translation.x = tf
-            .translation
-            .x
-            .clamp(LEVEL_LEFT + half_w, LEVEL_RIGHT - half_w);
-        return;
-    }
-
-    match *state {
-        // Idle - Gerald wil stand still. Unlikely that he ever has to go into this state.
-        GeraldState::Idle => {
-            //gerald.velocity = Vec2::ZERO;
-            *direction = GeraldDirection::Front;
-        }
-        // Patrol - Gerald walks back and forth a random amount of blocks.
-        // Collison detection not implemented yet, but Gerald will avoid face-planting into the walls
-        GeraldState::Patrol => {
-            // Regenerates the patrol with a new distance
-            if patrol.distance_remaining <= 0. {
-                patrol.direction *= -1.;
-                let mut rng = rand::thread_rng();
-
-                // Gets a random distance between 2 and 8 tiles.
-                patrol.distance_remaining = rng.gen_range(2.0..=8.0) * TILE_SIZE as f32;
-            }
-
-            if patrol.direction > 0. {
-                *direction = GeraldDirection::Right;
+        // Shining Road: a scared Gerald runs away from the player and does nothing else
+        if scared {
+            let away = (tf.translation.x - player.translation.x).signum();
+            gerald.velocity.x = away * GERALD_SPEED * FLEE_SPEED_MULT;
+            *direction = if away > 0. {
+                GeraldDirection::Right
             } else {
-                *direction = GeraldDirection::Left;
-            }
+                GeraldDirection::Left
+            };
 
-            let movement = (GERALD_SPEED * dt).min(patrol.distance_remaining);
+            tf.translation.x += gerald.velocity.x * dt;
 
-            gerald.velocity.x = patrol.direction * GERALD_SPEED;
-            tf.translation.x += patrol.direction * movement;
-            patrol.distance_remaining -= movement;
-
-            // Messy collision check copy-pasted from gerald_physics()
+            // Same collision check as the other states
             for brick in &bricks {
                 let (pen, push) = penetration(tf.translation, brick.translation);
                 if pen.x > 0.01 && pen.y > 0.01 {
@@ -269,117 +240,175 @@ fn gerald_ai(
                     gerald.velocity.x = 0.;
                 }
             }
+
+            // Don't run out of the level
+            let half_w = GERALD_SIZE.x / 2.;
+            tf.translation.x = tf.translation.x.clamp(
+                active.bounds_min.x + half_w,
+                active.bounds_max.x - half_w,
+            );
+            continue;
         }
 
-        // Chase - Gerald will follow player to where he sees them.
-        // TODO: Can either be triggered by sight (near) or sound (further)
-        GeraldState::Chase => {
-            let distance =
-                gerald.last_known.unwrap_or(player.translation.truncate()).x - tf.translation.x;
-
-            if distance > 0. {
-                gerald.velocity.x = GERALD_SPEED;
-                *direction = GeraldDirection::Right;
-            } else {
-                gerald.velocity.x = -GERALD_SPEED;
-                *direction = GeraldDirection::Left;
+        match *state {
+            // Idle - Gerald wil stand still. Unlikely that he ever has to go into this state.
+            GeraldState::Idle => {
+                //gerald.velocity = Vec2::ZERO;
+                *direction = GeraldDirection::Front;
             }
+            // Patrol - Gerald walks back and forth a random amount of blocks.
+            // Collison detection not implemented yet, but Gerald will avoid face-planting into the walls
+            GeraldState::Patrol => {
+                // Regenerates the patrol with a new distance
+                if patrol.distance_remaining <= 0. {
+                    patrol.direction *= -1.;
+                    let mut rng = rand::thread_rng();
 
-            // Gerald will go 1.5 times faster when he's chasing
-            tf.translation.x += gerald.velocity.x * dt * 1.5;
+                    // Gets a random distance between 2 and 8 tiles.
+                    patrol.distance_remaining = rng.gen_range(2.0..=8.0) * TILE_SIZE as f32;
+                }
 
-            // Messy collision check copy-pasted from gerald_physics()
-            for brick in &bricks {
-                let (pen, push) = penetration(tf.translation, brick.translation);
-                if pen.x > 0.01 && pen.y > 0.01 {
-                    tf.translation.x += pen.x * push.x * 1.5; // 1.5 comes from the line above that makes him faster when chasing
-                    gerald.velocity.x = 0.;
+                if patrol.direction > 0. {
+                    *direction = GeraldDirection::Right;
+                } else {
+                    *direction = GeraldDirection::Left;
+                }
+
+                let movement = (GERALD_SPEED * dt).min(patrol.distance_remaining);
+
+                gerald.velocity.x = patrol.direction * GERALD_SPEED;
+                tf.translation.x += patrol.direction * movement;
+                patrol.distance_remaining -= movement;
+
+                // Messy collision check copy-pasted from gerald_physics()
+                for brick in &bricks {
+                    let (pen, push) = penetration(tf.translation, brick.translation);
+                    if pen.x > 0.01 && pen.y > 0.01 {
+                        tf.translation.x += pen.x * push.x;
+                        gerald.velocity.x = 0.;
+                    }
                 }
             }
-        }
 
-        // Attack - Gerald will attack the player. riveting news.
-        // He'll also spin in circles which looks funny but will more likely than not be completely temporary.
-        GeraldState::Attack => {
-            let distance = player.translation.x - tf.translation.x;
-            //gerald.velocity.x = 0.;
-            // ^ commented out to let collision detection manage setting velocity to 0
+            // Chase - Gerald will follow player to where he sees them.
+            // TODO: Can either be triggered by sight (near) or sound (further)
+            GeraldState::Chase => {
+                let distance =
+                    gerald.last_known.unwrap_or(player.translation.truncate()).x - tf.translation.x;
 
-            gerald.attack_timer += dt;
+                if distance > 0. {
+                    gerald.velocity.x = GERALD_SPEED;
+                    *direction = GeraldDirection::Right;
+                } else {
+                    gerald.velocity.x = -GERALD_SPEED;
+                    *direction = GeraldDirection::Left;
+                }
 
-            if gerald.attack_timer >= 0.08 {
-                gerald.attack_timer = 0.;
+                // Gerald will go 1.5 times faster when he's chasing
+                tf.translation.x += gerald.velocity.x * dt * 1.5;
 
-                *direction = match *direction {
-                    GeraldDirection::Front => GeraldDirection::Right,
-                    GeraldDirection::Right => GeraldDirection::Back,
-                    GeraldDirection::Back => GeraldDirection::Left,
-                    GeraldDirection::Left => GeraldDirection::Front,
-                };
+                // Messy collision check copy-pasted from gerald_physics()
+                for brick in &bricks {
+                    let (pen, push) = penetration(tf.translation, brick.translation);
+                    if pen.x > 0.01 && pen.y > 0.01 {
+                        tf.translation.x += pen.x * push.x * 1.5; // 1.5 comes from the line above that makes him faster when chasing
+                        gerald.velocity.x = 0.;
+                    }
+                }
+            }
+
+            // Attack - Gerald will attack the player. riveting news.
+            // He'll also spin in circles which looks funny but will more likely than not be completely temporary.
+            GeraldState::Attack => {
+                let distance = player.translation.x - tf.translation.x;
+                //gerald.velocity.x = 0.;
+                // ^ commented out to let collision detection manage setting velocity to 0
+
+                gerald.attack_timer += dt;
+
+                if gerald.attack_timer >= 0.08 {
+                    gerald.attack_timer = 0.;
+
+                    *direction = match *direction {
+                        GeraldDirection::Front => GeraldDirection::Right,
+                        GeraldDirection::Right => GeraldDirection::Back,
+                        GeraldDirection::Back => GeraldDirection::Left,
+                        GeraldDirection::Left => GeraldDirection::Front,
+                    };
+                }
             }
         }
     }
 }
 
 // Temporary state changing for demo
-fn gerald_state_change(keyboard: Res<ButtonInput<KeyCode>>, mut gerald: Single<&mut GeraldState>) {
-    if keyboard.just_pressed(KeyCode::KeyU) {
-        **gerald = GeraldState::Idle;
-    }
+fn gerald_state_change(
+    keyboard: Res<ButtonInput<KeyCode>>,
+    mut geralds: Query<&mut GeraldState>,
+) {
+    let next = if keyboard.just_pressed(KeyCode::KeyU) {
+        GeraldState::Idle
+    } else if keyboard.just_pressed(KeyCode::KeyI) {
+        GeraldState::Patrol
+    } else if keyboard.just_pressed(KeyCode::KeyO) {
+        GeraldState::Chase
+    } else if keyboard.just_pressed(KeyCode::KeyP) {
+        GeraldState::Attack
+    } else {
+        return;
+    };
 
-    if keyboard.just_pressed(KeyCode::KeyI) {
-        **gerald = GeraldState::Patrol;
-    }
-
-    if keyboard.just_pressed(KeyCode::KeyO) {
-        **gerald = GeraldState::Chase;
-    }
-
-    if keyboard.just_pressed(KeyCode::KeyP) {
-        **gerald = GeraldState::Attack;
+    // Debug keys apply to every Gerald at once
+    for mut state in &mut geralds {
+        *state = next.clone();
     }
 }
 
 fn gerald_decision_tree(
     mut sounds: MessageReader<SoundEvent>,
     player: Single<(&Transform, &Health), With<Player>>,
-    gerald: Single<(&Transform, &mut Gerald, &mut GeraldState), Without<Player>>,
+    mut geralds: Query<(&Transform, &mut Gerald, &mut GeraldState), Without<Player>>,
 ) {
     let (player_tf, player_health) = player.into_inner();
-    let (tf, mut gerald, mut state) = gerald.into_inner();
-    let pos = tf.translation.truncate();
     let player_pos = player_tf.translation.truncate();
     let player_alive = player_health.current > 0.;
 
-    let heard = sounds
-        .read()
-        .filter(|sound| sound.pos.distance(pos) <= sound.kind.loudness())
-        .last()
-        .map(|sound| sound.pos)
-        .filter(|_| player_alive);
-    let sees_player = player_alive && player_pos.distance(pos) <= GERALD_SIGHT_RANGE;
+    // Messages can only be read once, so collect them and let every Gerald check the same list
+    let sounds: Vec<_> = sounds.read().map(|sound| (sound.pos, sound.kind.loudness())).collect();
 
-    let spotted = if sees_player { Some(player_pos) } else { heard };
-    if spotted.is_some() {
-        gerald.last_known = spotted;
-    }
+    for (tf, mut gerald, mut state) in &mut geralds {
+        let pos = tf.translation.truncate();
 
-    let next = match *state {
-        GeraldState::Idle | GeraldState::Patrol if spotted.is_some() => Some(GeraldState::Chase),
-        GeraldState::Chase => {
-            let target = *gerald.last_known.get_or_insert(player_pos);
-            let reached = (target.x - pos.x).abs() <= ARRIVE_DISTANCE;
-            if !player_alive || (reached && !sees_player) {
-                gerald.last_known = None;
-                Some(GeraldState::Patrol)
-            } else {
-                None
-            }
+        let heard = sounds
+            .iter()
+            .filter(|(sound_pos, loudness)| sound_pos.distance(pos) <= *loudness)
+            .last()
+            .map(|(sound_pos, _)| *sound_pos)
+            .filter(|_| player_alive);
+        let sees_player = player_alive && player_pos.distance(pos) <= GERALD_SIGHT_RANGE;
+
+        let spotted = if sees_player { Some(player_pos) } else { heard };
+        if spotted.is_some() {
+            gerald.last_known = spotted;
         }
-        _ => None,
-    };
 
-    if let Some(next) = next {
-        *state = next;
+        let next = match *state {
+            GeraldState::Idle | GeraldState::Patrol if spotted.is_some() => Some(GeraldState::Chase),
+            GeraldState::Chase => {
+                let target = *gerald.last_known.get_or_insert(player_pos);
+                let reached = (target.x - pos.x).abs() <= ARRIVE_DISTANCE;
+                if !player_alive || (reached && !sees_player) {
+                    gerald.last_known = None;
+                    Some(GeraldState::Patrol)
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        };
+
+        if let Some(next) = next {
+            *state = next;
+        }
     }
 }

@@ -7,6 +7,13 @@ use crate::proc_gen::{
 const HORIZONTAL_WIDTH: i32 = 4;
 const VERTICAL_WIDTH: i32 = 2;
 
+// Tiles x_start..=x_end; y_top is the highest carved row (the ceiling sits right above it)
+pub struct HorzHallway {
+    pub x_start: i32,
+    pub x_end: i32,
+    pub y_top: i32,
+}
+
 pub struct VertHallway {
     pub x: i32,
     pub y_start: i32,
@@ -32,7 +39,18 @@ fn carve_tile(map: &mut RoomMap, x: i32, y: i32) {
 }
 
 // Carve a horizontal hallway between two X coordinates.
-fn carve_horizontal(map: &mut RoomMap, x1: i32, x2: i32, y: i32) {
+fn carve_horizontal(
+    map: &mut RoomMap,
+    x1: i32,
+    x2: i32,
+    y: i32,
+    horz_hallways: &mut Vec<HorzHallway>,
+) {
+    horz_hallways.push(HorzHallway {
+        x_start: x1.min(x2),
+        x_end: x1.max(x2),
+        y_top: y + HORIZONTAL_WIDTH - 2,
+    });
     for x in x1.min(x2)..=x1.max(x2) {
         for offset in -1..HORIZONTAL_WIDTH - 1 {
             carve_tile(map, x, y + offset);
@@ -63,8 +81,9 @@ fn carve_vertical(
 }
 
 // Carve hallways along the selected graph edges.
-pub fn carve_hallways(map: &mut RoomMap, edges: &[Edge]) -> Vec<VertHallway> {
+pub fn carve_hallways(map: &mut RoomMap, edges: &[Edge]) -> (Vec<VertHallway>, Vec<HorzHallway>) {
     let mut vert_hallways = Vec::new();
+    let mut horz_hallways = Vec::new();
 
     for edge in edges {
         let (Some(a), Some(b)) = (map.rooms.get(edge.a), map.rooms.get(edge.b)) else {
@@ -88,12 +107,12 @@ pub fn carve_hallways(map: &mut RoomMap, edges: &[Edge]) -> Vec<VertHallway> {
         } else if overlap_y_start <= overlap_y_end {
             // Rooms overlap along Y: horizontal hallway.
             let y = (overlap_y_start + overlap_y_end) / 2;
-            carve_horizontal(map, ax, bx, y);
+            carve_horizontal(map, ax, bx, y, &mut horz_hallways);
         } else {
             // Neither axis overlaps: L-shaped hallway.
-            carve_horizontal(map, ax, bx, ay);
+            carve_horizontal(map, ax, bx, ay, &mut horz_hallways);
             carve_vertical(map, ay, by, bx, &mut vert_hallways);
         }
     }
-    vert_hallways
+    (vert_hallways, horz_hallways)
 }

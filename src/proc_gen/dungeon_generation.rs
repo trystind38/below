@@ -1,7 +1,7 @@
 use crate::proc_gen::terrain_features::decorate_map;
 use crate::proc_gen::{
     geometry::{Edge, Point},
-    hallway_gen::{VertHallway, carve_hallways},
+    hallway_gen::{HorzHallway, VertHallway, carve_hallways},
     mst::minimum_spanning_tree,
     platform_gen::{Platform, generate_platforms},
     room_generation::{RoomMap, map_rooms},
@@ -16,6 +16,7 @@ pub struct DungeonLayout {
     pub mst_edges: Vec<Edge>,
     pub selected_edges: Vec<Edge>,
     pub vert_hallways: Vec<VertHallway>,
+    pub horz_hallways: Vec<HorzHallway>,
     pub platforms: Vec<Platform>,
 }
 
@@ -52,7 +53,7 @@ pub fn generate_dungeon(seed: u64) -> DungeonLayout {
     }
 
     // Carve hallways
-    let vert_hallways = carve_hallways(&mut map, &selected_edges);
+    let (vert_hallways, horz_hallways) = carve_hallways(&mut map, &selected_edges);
 
     // Generate vertical platforms
     let platforms = generate_platforms(&mut map, &vert_hallways, seed);
@@ -67,6 +68,7 @@ pub fn generate_dungeon(seed: u64) -> DungeonLayout {
         mst_edges,
         selected_edges,
         vert_hallways,
+        horz_hallways,
         platforms,
     }
 }
