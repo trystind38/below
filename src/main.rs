@@ -23,6 +23,7 @@ mod stats;
 mod tank_light;
 mod teeth;
 mod ambience;
+mod lamp;
 mod proc_gen {
     pub mod dungeon_generation;
     pub mod enemy_placement;
