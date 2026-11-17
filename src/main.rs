@@ -20,6 +20,7 @@ mod sound;
 mod stats;
 mod tank_light;
 mod teeth;
+mod ambience;
 mod proc_gen {
     pub mod dungeon_generation;
     pub mod enemy_placement;
@@ -112,6 +113,7 @@ fn main() {
             shining_road::ShiningRoadPlugin,
             proc_gen::terrain_features::TerrainFeaturesPlugin,
             pathfinding::astar_demo::AStarDemoPlugin,
+            ambience::AmbiencePlugin,
         ))
         // Run the game
         .run();
