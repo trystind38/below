@@ -83,6 +83,12 @@ pub const GERALD: EnemyStats = EnemyStats {
     speed: GERALD_SPEED,
 };
 
+pub const AMOOG: EnemyStats = EnemyStats {
+    health: 60.0,
+    damage: 5.0,
+    speed: 50.0,
+};
+
 pub const STRAIGHT_TEETH: EnemyStats = EnemyStats {
     health: f32::INFINITY,
     damage: 20.0,
