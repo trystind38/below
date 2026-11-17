@@ -115,6 +115,7 @@ fn main() {
             light_burst::LightBurstPlugin,
             forcefield::ForceFieldPlugin,
             shining_road::ShiningRoadPlugin,
+            lamp::LampPlugin,
             proc_gen::terrain_features::TerrainFeaturesPlugin,
             pathfinding::astar_demo::AStarDemoPlugin,
             ambience::AmbiencePlugin,

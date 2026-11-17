@@ -59,7 +59,7 @@ impl Plugin for CombatPlugin {
     }
 }
 
-fn overlaps(a_pos: Vec2, a_size: Vec2, b_pos: Vec2, b_size: Vec2) -> bool {
+pub fn overlaps(a_pos: Vec2, a_size: Vec2, b_pos: Vec2, b_size: Vec2) -> bool {
     let d = (a_pos - b_pos).abs();
     let reach = (a_size + b_size) / 2.;
     d.x < reach.x && d.y < reach.y

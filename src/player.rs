@@ -54,6 +54,7 @@ pub struct Player {
     pub can_fastfall: bool,
     pub facing: f32, // 1 = right, -1 = left
     pub stun: f32,   // seconds of knockback left
+    pub last_checkpoint: Vec2,
     jump_buffer: f32,
     step_cooldown: f32,
 }
@@ -86,6 +87,7 @@ impl Plugin for PlayerPlugin {
                     animate_player,
                     damage_player,
                     tint_player,
+                    respawn_player,
                 )
                     .chain()
                     .in_set(PlayerSystems)
@@ -383,4 +385,14 @@ fn tint_player(
     } else {
         blink_color(cooldown)
     };
+}
+
+fn respawn_player(player: Single<(&mut Transform, &mut Player, &mut Health)>) {
+    let (mut tf, mut player, mut health) = player.into_inner();
+    if health.current > 0. {
+        return;
+    }
+    tf.translation.x = player.last_checkpoint.x;
+    tf.translation.y = player.last_checkpoint.y;
+    health.current = health.max;
 }
