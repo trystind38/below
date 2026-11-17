@@ -80,10 +80,7 @@ fn spawn_lamps(
     sheet: Res<LampSheet>, 
     active: Res<ActiveLevel>) 
 {
-        let floor_y = active.spawn.y - PLAYER_SIZE.y / 2.;
-    let pos = Vec2::new(
-        active.spawn.x + 4. * TILE_SIZE,
-        floor_y + LAMP_SIZE.y,
-    );
-    spawn_lamp_at(&mut commands, &sheet, pos);
+    for &pos in &active.lamps {
+        spawn_lamp_at(&mut commands, &sheet, pos);
+    }
 }

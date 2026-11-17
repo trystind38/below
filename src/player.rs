@@ -393,6 +393,6 @@ fn respawn_player(player: Single<(&mut Transform, &mut Player, &mut Health)>) {
         return;
     }
     tf.translation.x = player.last_checkpoint.x;
-    tf.translation.y = player.last_checkpoint.y + (PLAYER_SIZE.y - 32.) / 2.;
+    tf.translation.y = player.last_checkpoint.y;
     health.current = health.max;
 }
