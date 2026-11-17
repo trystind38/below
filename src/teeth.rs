@@ -20,7 +20,7 @@ const FIREBALL_DRAW_SIZE: Vec2 = Vec2::new(24., 24.);
 const FIREBALL_SIZE: Vec2 = Vec2::new(14., 14.);
 const FIRE_INTERVAL: f32 = 2.;
 const FIREBALL_SPEED: f32 = 650.;
-const FIREBALL_GRAVITY: f32 = 512.;
+pub const FIREBALL_GRAVITY: f32 = 512.;
 const FIREBALL_DAMAGE: f32 = 10.;
 
 #[derive(Component)]

@@ -1,6 +1,7 @@
 use bevy::{prelude::*, window::PresentMode};
 
 mod pathfinding;
+mod amoog;
 mod burst_meter;
 mod camera;
 mod combat;
@@ -11,6 +12,7 @@ mod health_bar;
 mod hivemind;
 mod hivemind_controller;
 mod level;
+mod lighting;
 mod light_burst;
 mod loading;
 mod menus;
@@ -20,7 +22,7 @@ mod sound;
 mod stats;
 mod tank_light;
 mod teeth;
-mod lamp;
+mod ambience;
 mod proc_gen {
     pub mod dungeon_generation;
     pub mod enemy_placement;
@@ -107,6 +109,8 @@ fn main() {
         .add_plugins((
             tank_light::TankLightPlugin,
             teeth::TeethPlugin,
+            amoog::AmoogPlugin,
+            lighting::LightingPlugin,
             burst_meter::BurstMeterPlugin,
             light_burst::LightBurstPlugin,
             forcefield::ForceFieldPlugin,
@@ -114,6 +118,7 @@ fn main() {
             lamp::LampPlugin,
             proc_gen::terrain_features::TerrainFeaturesPlugin,
             pathfinding::astar_demo::AStarDemoPlugin,
+            ambience::AmbiencePlugin,
         ))
         // Run the game
         .run();
