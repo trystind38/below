@@ -1,6 +1,7 @@
 use bevy::{prelude::*, window::PresentMode};
 
 mod pathfinding;
+mod amoog;
 mod burst_meter;
 mod camera;
 mod combat;
@@ -11,6 +12,7 @@ mod health_bar;
 mod hivemind;
 mod hivemind_controller;
 mod level;
+mod lighting;
 mod light_burst;
 mod loading;
 mod menus;
@@ -107,6 +109,8 @@ fn main() {
         .add_plugins((
             tank_light::TankLightPlugin,
             teeth::TeethPlugin,
+            amoog::AmoogPlugin,
+            lighting::LightingPlugin,
             burst_meter::BurstMeterPlugin,
             light_burst::LightBurstPlugin,
             forcefield::ForceFieldPlugin,

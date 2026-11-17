@@ -18,6 +18,8 @@ const BAR_SIZE: Vec2 = Vec2::new(132., 10.);
 const EMPTY_COLOR: Color = Color::srgb(0.15, 0.15, 0.2);
 const FILLING_COLOR: Color = Color::srgb(0.6, 0.6, 0.35); // still filling, or not enough health
 const READY_COLOR: Color = Color::srgb(1., 0.95, 0.5); // meter full and health high enough
+const READY_PULSE_SPEED: f32 = 5.;
+const READY_PULSE_DIM: f32 = 0.45;
 
 // Glow around the player while the meter is full
 // (sizes are in the player sprite's own units, which are drawn at 2x on screen)
@@ -71,7 +73,7 @@ impl Plugin for BurstMeterPlugin {
             .add_systems(OnEnter(GameState::Playing), (reset_meter, spawn_meter))
             .add_systems(
                 Update,
-                (fill_meter, update_meter, attach_aura, update_aura)
+                (fill_meter, update_meter)
                     .chain()
                     .run_if(in_state(GameState::Playing)),
             )
@@ -115,14 +117,21 @@ fn fill_meter(time: Res<Time>, mut meter: ResMut<BurstMeter>) {
 }
 
 fn update_meter(
+    time: Res<Time>,
     meter: Res<BurstMeter>,
     player: Single<&Health, With<Player>>,
     mut fills: Query<(&mut Node, &mut BackgroundColor), With<MeterFill>>,
 ) {
     let ready = meter.is_full() && enough_health(&player);
+    let wave = 0.5 + 0.5 * (time.elapsed_secs() * READY_PULSE_SPEED).sin();
+    let pulse = 1. - READY_PULSE_DIM * wave;
     for (mut node, mut color) in &mut fills {
         node.width = Val::Percent(meter.0 * 100.);
-        color.0 = if ready { READY_COLOR } else { FILLING_COLOR };
+        color.0 = if ready {
+            READY_COLOR.with_alpha(pulse)
+        } else {
+            FILLING_COLOR
+        };
     }
 }
 

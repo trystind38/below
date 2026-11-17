@@ -14,8 +14,8 @@ const ROAD_METER_COST: f32 = 0.9; // fraction of the shared meter it uses
 
 // The beam (world units)
 const ROAD_START: f32 = 24.; // how far in front of the player the beam starts
-const ROAD_LENGTH: f32 = 1000.;
-const ROAD_WIDTH: f32 = 64.; // as tall as the player
+pub const ROAD_LENGTH: f32 = 1000.;
+pub const ROAD_WIDTH: f32 = 64.; // as tall as the player
 const ROAD_LAYERS: u32 = 6; // soft edges come from stacking this many see-through strips
 const ROAD_LAYER_ALPHA: f32 = 0.09;
 const ROAD_FADE: f32 = 0.3; // seconds to fade in and out at the ends
@@ -40,7 +40,7 @@ pub struct Scared {
 }
 
 #[derive(Component)]
-struct RoadBeam;
+pub struct RoadBeam;
 
 pub struct ShiningRoadPlugin;
 impl Plugin for ShiningRoadPlugin {
