@@ -20,6 +20,7 @@ mod sound;
 mod stats;
 mod tank_light;
 mod teeth;
+mod lamp;
 mod proc_gen {
     pub mod dungeon_generation;
     pub mod enemy_placement;
@@ -110,6 +111,7 @@ fn main() {
             light_burst::LightBurstPlugin,
             forcefield::ForceFieldPlugin,
             shining_road::ShiningRoadPlugin,
+            lamp::LampPlugin,
             proc_gen::terrain_features::TerrainFeaturesPlugin,
             pathfinding::astar_demo::AStarDemoPlugin,
         ))

@@ -38,6 +38,7 @@ pub struct ActiveLevel {
     pub bounds_max: Vec2,
     // Where to spawn enemies on a procedural map (empty for the intro level)
     pub enemies: EnemySpawns,
+    pub lamps: Vec<Vec2>,
 }
 
 pub struct LevelPlugin;
@@ -242,6 +243,7 @@ impl Default for ActiveLevel {
             bounds_min: Vec2::new(LEVEL_LEFT, LEVEL_BOTTOM),
             bounds_max: Vec2::new(LEVEL_RIGHT, LEVEL_TOP),
             enemies: EnemySpawns::default(),
+            lamps: vec![Vec2::new(4. * TILE_SIZE, LEVEL_BOTTOM + TILE_SIZE + 16.)],
         }
     }
 }
@@ -291,7 +293,19 @@ impl ActiveLevel {
             enemies.teeth.len(),
             enemies.geralds.len()
         );
-
+        let lamps: Vec<Vec2> = map
+            .rooms
+            .iter()
+            .map(|room| {
+                let x = (room.x + room.width / 2.) as usize;
+                let mut y = room.y as usize;
+                // Terrain hills can raise the floor, so climb until the tile is open
+                while matches!(map.tiles[y * map.width + x], TileType::Wall) {
+                    y += 1;
+                }
+                Vec2::new((x as f32 + 0.5) * TILE_SIZE, (y as f32 + 0.5) * TILE_SIZE)
+            })
+            .collect();
         Self {
             spawn: Vec2::new(
                 (spawn_x as f32 + 0.5) * TILE_SIZE,
@@ -301,6 +315,7 @@ impl ActiveLevel {
             bounds_max,
             map: Some(map),
             enemies,
+            lamps,
         }
     }
 }
