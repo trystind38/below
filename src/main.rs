@@ -24,6 +24,8 @@ mod tank_light;
 mod teeth;
 mod ambience;
 mod lamp;
+mod boss_level;
+mod level_progress;
 mod proc_gen {
     pub mod dungeon_generation;
     pub mod enemy_placement;
@@ -120,6 +122,8 @@ fn main() {
             proc_gen::terrain_features::TerrainFeaturesPlugin,
             pathfinding::astar_demo::AStarDemoPlugin,
             ambience::AmbiencePlugin,
+            boss_level::BossLevelPlugin,
+            level_progress::LevelProgressPlugin
         ))
         // Run the game
         .run();

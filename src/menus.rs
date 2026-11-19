@@ -7,6 +7,7 @@ use crate::{
     GameState,
     loading::despawn_with,
     level::ActiveLevel,
+    level_progress::{CurrentLevel, LevelId, start_level},
 };
 
 #[derive(Component)]
@@ -91,14 +92,16 @@ fn setup_main_menu(
     mut commands: Commands,
     mut active: ResMut<ActiveLevel>,
 ) {
-    // The existing Basic Demo button uses the default level.
+    // Back on the menu: go back to the default level until a button picks another one.
     *active = ActiveLevel::default();
 
+    // One button per level (Demo, Level 1, Level 2, Boss) goes at the top,
+    // then the other menu options.
     let menu = spawn_menu(
         &mut commands,
         "Below",
+        &LevelId::ALL,
         &[
-            ("Basic Demo", GameState::Playing),
             ("Proc Gen", GameState::ProcGenMenu),
             ("Slideshow", GameState::AISlideshow),
             ("A Star", GameState::AStar),
@@ -131,9 +134,12 @@ fn setup_main_menu(
             .observe(
                 |_: On<Activate>,
                  mut active: ResMut<ActiveLevel>,
+                 mut current: ResMut<CurrentLevel>,
                  mut next_state: ResMut<NextState<GameState>>| {
                     *active =
                         ActiveLevel::procedural(rand::random::<u64>());
+                    // A random dungeon counts as Level 1, so its door leads on to Level 2
+                    current.0 = LevelId::One;
 
                     next_state.set(GameState::Playing);
                 },
@@ -146,6 +152,7 @@ fn setup_proc_gen_menu(mut commands: Commands) {
     spawn_menu(
         &mut commands,
         "Procedural Generation",
+        &[],
         &[
             ("Room Generation", GameState::RoomGeneration),
             ("Delaunay Triangulation", GameState::Triangulation),
@@ -160,6 +167,7 @@ fn setup_triangulation_placeholder(mut commands: Commands) {
     spawn_menu(
         &mut commands,
         "Delaunay Triangulation",
+        &[],
         &[
             ("Back", GameState::ProcGenMenu),
         ],
@@ -169,6 +177,7 @@ fn setup_triangulation_placeholder(mut commands: Commands) {
 fn spawn_menu(
     commands: &mut Commands,
     title: &str,
+    levels: &[LevelId],
     options: &[(&str, GameState)],
 ) -> Entity {
     // Implementation for spawning a menu goes here
@@ -195,6 +204,40 @@ fn spawn_menu(
                 },
                 TextColor(Color::WHITE),
             ));
+
+            // Level buttons: each one loads that level and starts playing it
+            for &id in levels {
+                parent
+                    .spawn((
+                        Button,
+                        Node {
+                            width: px(320),
+                            height: px(56),
+                            align_items: AlignItems::Center,
+                            justify_content: JustifyContent::Center,
+                            ..default()
+                        },
+                        BackgroundColor(Color::srgb(0.18, 0.25, 0.31)),
+                    ))
+                    .with_children(|button| {
+                        button.spawn((
+                            Text::new(id.name()),
+                            TextFont {
+                                font_size: FontSize::Px(22.0),
+                                ..default()
+                            },
+                            TextColor(Color::WHITE),
+                        ));
+                    })
+                    .observe(
+                        move |_: On<Activate>,
+                              mut active: ResMut<ActiveLevel>,
+                              mut current: ResMut<CurrentLevel>,
+                              mut next_state: ResMut<NextState<GameState>>| {
+                            start_level(id, &mut active, &mut current, &mut next_state);
+                        },
+                    );
+            }
 
             for &(label, destination) in options {
                 parent
