@@ -1,1 +1,5 @@
+# Exclude Bevy build and debug files
 /target
+
+# Exclude macos system files
+**/.DS_STORE
