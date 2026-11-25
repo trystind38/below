@@ -109,7 +109,7 @@ fn spawn_menu(
 ) {
     commands
         .spawn((
-            Node {
+            bevy::ui::Node {
                 width: percent(100),
                 height: percent(100),
                 flex_direction: FlexDirection::Column,
@@ -135,7 +135,7 @@ fn spawn_menu(
                 parent
                     .spawn((
                         Button,
-                        Node {
+                        bevy::ui::Node {
                             width: px(200),
                             height: px(42),
                             align_items: AlignItems::Center,

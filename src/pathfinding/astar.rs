@@ -1,17 +1,25 @@
+/*  astar.rs contains the general implementation of the A* search algorithm.
+ *
+ *  It allows for solving for a path between 2 points, given the graph those 2 points are on.
+ *
+ *  To adapt to a platformer, that work is done outside of this general implementation.
+ *  It doesn't need to know how neighbors and traversal costs are calculated, it just needs to be provided the 2 points and graph.
+ */
+
 use bevy::prelude::IVec2;
 use std::cmp::Ordering;
 use std::collections::{BinaryHeap, HashMap};
 
 #[derive(Debug, Clone, Copy, Hash)]
-pub struct NavNode {
+pub struct Node {
     pub position: IVec2,
     pub g_cost: i32,
     pub f_score: i32,
 }
 
-impl NavNode {
-    pub fn new(position: IVec2, g_cost: i32, f_score: i32) -> NavNode {
-        NavNode {
+impl Node {
+    pub fn new(position: IVec2, g_cost: i32, f_score: i32) -> Node {
+        Node {
             position: position,
             g_cost: g_cost,
             f_score: f_score,
@@ -19,7 +27,7 @@ impl NavNode {
     }
 }
 
-impl PartialEq for NavNode {
+impl PartialEq for Node {
     fn eq(&self, other: &Self) -> bool {
         self.position == other.position
         && self.g_cost == other.g_cost
@@ -27,15 +35,15 @@ impl PartialEq for NavNode {
     }
 }
 
-impl Eq for NavNode {}
+impl Eq for Node {}
 
-impl PartialOrd for NavNode {
+impl PartialOrd for Node {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl Ord for NavNode {
+impl Ord for Node {
     fn cmp(&self, other: &Self) -> Ordering {
         other.f_score.cmp(&self.f_score)
         .then(other.position.x.cmp(&self.position.x))
@@ -46,7 +54,7 @@ impl Ord for NavNode {
 // The position and cost of traversal
 pub type Neighbors = Vec<(IVec2, i32)>;
 
-// The NodeGraph contains every NavNode, represented by their IVec2, paired with their list of neighbors
+// The NodeGraph contains every Node, represented by their IVec2, paired with their list of neighbors
 pub struct NodeGraph {
     pub neighbors: HashMap<IVec2, Neighbors>
 }
@@ -74,14 +82,14 @@ pub fn astar_path(start: IVec2, destination: IVec2, graph: &NodeGraph) -> Option
     g_costs.insert(start, 0);
 
     // The open BinaryHeap tracks what nodes are being explored for the path.
-    open.push(NavNode {
+    open.push(Node {
         position: start,
         g_cost: 0,
         f_score: manhattan_distance_heuristic(start, destination),
     });
 
     // While there are "nodes" in that open BinaryHeap,
-    while let Some(NavNode {
+    while let Some(Node {
         position: mut current,
         g_cost,
         ..
@@ -118,7 +126,7 @@ pub fn astar_path(start: IVec2, destination: IVec2, graph: &NodeGraph) -> Option
                 if new_g < current_g {
                     parents.insert(neighbor_position, current);
                     g_costs.insert(neighbor_position, new_g);
-                    open.push(NavNode::new(
+                    open.push(Node::new(
                         neighbor_position,
                         new_g,
                         new_g + manhattan_distance_heuristic(neighbor_position, destination),
