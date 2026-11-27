@@ -2,8 +2,8 @@ use bevy::prelude::*;
 use rand::Rng;
 
 use crate::{
-    GameState, LEVEL_BOTTOM, TILE_SIZE,
-    level::{ActiveLevel, Brick},
+    GameState, TILE_SIZE,
+    level::{ActiveLevel, Brick, intro_only},
     loading::{LoadingAssets, despawn_with},
     player::{PLAYER_SIZE, Player},
     shining_road::{FLEE_SPEED_MULT, Scared},
@@ -16,7 +16,6 @@ const SPRITE_SCALE: f32 = 2.;
 const FRAME_SIZE: u32 = 32;
 const FRAME_COUNT: u32 = 15;
 const AMOOG_SIZE: Vec2 = Vec2::new(40., 56.);
-const SPAWN_X: f32 = -450.;
 
 const GRAVITY: f32 = 2000.;
 const MAX_FALL_SPEED: f32 = 1200.;
@@ -114,7 +113,8 @@ impl Plugin for AmoogPlugin {
         app.add_systems(Startup, load_amoog)
             .add_systems(
                 OnEnter(GameState::Playing),
-                spawn_amoog.run_if(crate::level::intro_only),
+                // Only Level 2 has Amoog spawns
+                spawn_level_amoogs.run_if(not(intro_only)),
             )
             .add_systems(
                 FixedUpdate,
@@ -153,7 +153,20 @@ fn load_amoog(
     });
 }
 
-fn spawn_amoog(mut commands: Commands, sheet: Res<AmoogSheet>) {
+// Same spots and placement as spawn_level_geralds, standing on the floor
+fn spawn_level_amoogs(mut commands: Commands, sheet: Res<AmoogSheet>, active: Res<ActiveLevel>) {
+    for spawn in &active.enemies.amoogs {
+        let tile = spawn.tile.as_vec2();
+        // Feet on top of the floor tile below, plus a pixel so gravity settles it
+        let pos = Vec2::new(
+            (tile.x + 0.5) * TILE_SIZE,
+            tile.y * TILE_SIZE + AMOOG_SIZE.y / 2. + 1.,
+        );
+        spawn_amoog_at(&mut commands, &sheet, pos);
+    }
+}
+
+fn spawn_amoog_at(commands: &mut Commands, sheet: &AmoogSheet, pos: Vec2) {
     commands.spawn((
         Sprite::from_atlas_image(
             sheet.image.clone(),
@@ -162,7 +175,7 @@ fn spawn_amoog(mut commands: Commands, sheet: Res<AmoogSheet>) {
                 index: LISTEN_FRAME,
             },
         ),
-        Transform::from_xyz(SPAWN_X, LEVEL_BOTTOM + TILE_SIZE + AMOOG_SIZE.y / 2., 2.)
+        Transform::from_translation(pos.extend(2.))
             .with_scale(Vec3::splat(SPRITE_SCALE)),
         Amoog {
             facing: 1.,

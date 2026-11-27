@@ -36,7 +36,6 @@ pub struct ActiveLevel {
     pub spawn: Vec2,
     pub bounds_min: Vec2,
     pub bounds_max: Vec2,
-    // Where to spawn enemies on a procedural map (empty for the intro level)
     pub enemies: EnemySpawns,
     pub lamps: Vec<Vec2>,
 }
@@ -104,8 +103,6 @@ fn setup_level(
                     1.,
                 );
 
-                // Every collision system loops over all Bricks, and ~90% of wall tiles are buried in
-                // solid rock where nothing can reach them. Draw those but leave them out of collision.
                 if touches_open_space(map, x, y) {
                     spawn_tile(&mut commands, &brick_image, translation);
                 } else {
@@ -202,8 +199,7 @@ fn setup_level(
     spawn_tile(&mut commands, &brick_image, t);
 }
 
-// True if any of the 8 tiles around (x, y) is open. Off the map counts as solid.
-// Diagonals matter: an entity's box can clip a wall's corner from a diagonal tile.
+// True if any of the 8 tiles around (x, y) is open. 
 fn touches_open_space(map: &RoomMap, x: usize, y: usize) -> bool {
     (-1..=1).any(|dy: i32| {
         (-1..=1).any(|dx: i32| {
@@ -317,6 +313,21 @@ impl ActiveLevel {
             enemies,
             lamps,
         }
+    }
+}
+
+impl ActiveLevel {
+    // Level 2 only: put hives in a few rooms 
+    pub fn add_hives(&mut self, seed: u64) {
+        let Some(map) = &self.map else {
+            return;
+        };
+        let spawn = (self.spawn / TILE_SIZE).floor();
+        let start_room = map.rooms.iter().position(|r| {
+            let (x, y) = (spawn.x as f64, spawn.y as f64);
+            x >= r.x && x < r.x + r.width && y >= r.y && y < r.y + r.height
+        });
+        self.enemies.place_hives(map, start_room, seed);
     }
 }
 

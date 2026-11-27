@@ -120,8 +120,7 @@ impl Plugin for HivemindPlugin {
                     update_pollen_particles,
                 )
                     .chain()
-                    .run_if(in_state(GameState::Playing))
-                    .run_if(crate::level::intro_only),
+                    .run_if(in_state(GameState::Playing)),
             )
             .add_systems(
                 OnExit(GameState::Playing),

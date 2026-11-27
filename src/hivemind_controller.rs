@@ -4,7 +4,7 @@ use rand::Rng;
 use crate::{
     GameState, LEVEL_BOTTOM, TILE_SIZE,
     hivemind::{HivemindSheet, HivemindState, spawn_hivemind_enemy},
-    level::Brick,
+    level::{ActiveLevel, Brick, BuriedTile, intro_only},
     loading::{LoadingAssets, despawn_with},
     player::Player,
     stats::{Enemy, Health, HitCooldown, Hitbox},
@@ -42,7 +42,10 @@ impl Plugin for HivemindControllerPlugin {
         app.add_systems(Startup, load_hive)
             .add_systems(
                 OnEnter(GameState::Playing),
-                spawn_hive.run_if(crate::level::intro_only),
+                (
+                    spawn_hive.run_if(intro_only),
+                    spawn_level_hives.run_if(not(intro_only)),
+                ),
             )
             .add_systems(
                 Update,
@@ -52,8 +55,7 @@ impl Plugin for HivemindControllerPlugin {
                     rustle_flowers,
                     update_flower_cooldowns,
                 )
-                    .run_if(in_state(GameState::Playing))
-                    .run_if(crate::level::intro_only),
+                    .run_if(in_state(GameState::Playing)),
             )
             .add_systems(
                 OnExit(GameState::Playing),
@@ -82,7 +84,29 @@ fn load_hive(
 
 fn spawn_hive(mut commands: Commands, assets: Res<HiveAssets>, sheet: Res<HivemindSheet>) {
     let hive_position = Vec2::new(1250., LEVEL_BOTTOM + TILE_SIZE + HIVE_SIZE.y);
+    spawn_hive_at(&mut commands, &assets, &sheet, hive_position);
+}
 
+// Procedural level: each hive sits on its room's floor
+fn spawn_level_hives(
+    mut commands: Commands,
+    assets: Res<HiveAssets>,
+    sheet: Res<HivemindSheet>,
+    active: Res<ActiveLevel>,
+) {
+    for spawn in &active.enemies.hives {
+        let tile = spawn.tile.as_vec2();
+        let pos = Vec2::new((tile.x + 0.5) * TILE_SIZE, tile.y * TILE_SIZE + HIVE_SIZE.y);
+        spawn_hive_at(&mut commands, &assets, &sheet, pos);
+    }
+}
+
+fn spawn_hive_at(
+    commands: &mut Commands,
+    assets: &HiveAssets,
+    sheet: &HivemindSheet,
+    hive_position: Vec2,
+) {
     let hive_entity = commands
         .spawn((
             Sprite::from_image(assets.image.clone()),
@@ -102,13 +126,7 @@ fn spawn_hive(mut commands: Commands, assets: Res<HiveAssets>, sheet: Res<Hivemi
     for i in 0..12 {
         let spawn_position = hive_position + Vec2::new((i as f32 - 5.5) * 36., HIVE_SIZE.y);
 
-        spawn_hivemind_enemy(
-            &mut commands,
-            &sheet,
-            spawn_position,
-            hive_position,
-            hive_entity,
-        );
+        spawn_hivemind_enemy(commands, sheet, spawn_position, hive_position, hive_entity);
     }
 }
 
@@ -116,9 +134,21 @@ fn populate_hive_flowers(
     mut commands: Commands,
     hives: Query<&Transform, Added<Hive>>,
     bricks: Query<&Transform, With<Brick>>,
+    buried: Query<&Transform, With<BuriedTile>>,
     assets: Res<HiveAssets>,
 ) {
     let mut rng = rand::thread_rng();
+
+    // Every wall tile, buried ones included
+    let solid: std::collections::HashSet<IVec2> = if hives.is_empty() {
+        Default::default()
+    } else {
+        bricks
+            .iter()
+            .chain(&buried)
+            .map(|tf| (tf.translation.truncate() / TILE_SIZE).floor().as_ivec2())
+            .collect()
+    };
 
     for hive_tf in &hives {
         let hive_position = hive_tf.translation.truncate();
@@ -148,6 +178,11 @@ fn populate_hive_flowers(
             let Some(surface) = surface else {
                 continue;
             };
+            // On a generated map the highest brick in range can be buried inside solid rock
+            let above = (surface.translation.truncate() / TILE_SIZE).floor().as_ivec2() + IVec2::Y;
+            if solid.contains(&above) {
+                continue;
+            }
 
             let flower_x = surface.translation.x;
 

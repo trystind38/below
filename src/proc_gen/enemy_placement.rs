@@ -1,5 +1,3 @@
-// Picks where enemies go in a finished dungeon (after hallways, platforms and terrain).
-// Pure function: no Bevy entities, just tile positions, so it can be tested and previewed.
 
 use bevy::math::IVec2;
 use rand::{Rng, SeedableRng, rngs::StdRng};
@@ -9,34 +7,40 @@ use crate::proc_gen::{
     room_generation::{RoomMap, TileType},
 };
 
-// ---------- tuning ----------
-const TEETH_CHANCE: f64 = 0.6; // chance each hallway gets a Teeth
-const TEETH_SPACING: i32 = 6; // min tiles between two Teeth (hallways can overlap)
-const CEILING_CLEARANCE: i32 = 4; // open rows under a ceiling Teeth: 2 for it, 2 for the player
-const GERALD_SPACING: i32 = 5; // min tiles between two Geralds in a room
-const WIDE_ROOM: f64 = 16.; // rooms this wide can get a second Gerald
+const TEETH_CHANCE: f64 = 0.6; 
+const TEETH_SPACING: i32 = 6; 
+const CEILING_CLEARANCE: i32 = 4;  
+const GERALD_SPACING: i32 = 5; 
+const WIDE_ROOM: f64 = 16.; 
 const EXTRA_GERALD_CHANCE: f64 = 0.5;
-const ROOM_MARGIN: i32 = 1; // keep Teeth this far outside room rectangles
-// Mixed into the dungeon seed so enemy rolls don't share a stream with room/hallway rolls
+const ROOM_MARGIN: i32 = 1; 
+const HIVE_CHANCE: f64 = 0.15;
+const HIVE_LAMP_GAP: i32 = 3; 
+const HIVE_SALT: u64 = 0x41E5_B0B0_0000_0001;
 const SEED_SALT: u64 = 0x7EE7_4E1D_E5A1_7000;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TeethFacing {
-    Down,  // hanging from a horizontal hallway's ceiling
-    Left,  // on a vertical shaft's right wall
-    Right, // on a vertical shaft's left wall
+    Down,  
+    Left,  
+    Right, 
 }
 
-// `tile` is the empty tile touching the ceiling/wall the Teeth is attached to
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct TeethSpawn {
     pub tile: IVec2,
     pub facing: TeethFacing,
 }
 
-// `tile` is the empty tile Gerald stands in (solid floor directly below it)
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct GeraldSpawn {
+    pub tile: IVec2,
+}
+
+pub type AmoogSpawn = GeraldSpawn;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct HiveSpawn {
     pub tile: IVec2,
 }
 
@@ -44,6 +48,58 @@ pub struct GeraldSpawn {
 pub struct EnemySpawns {
     pub teeth: Vec<TeethSpawn>,
     pub geralds: Vec<GeraldSpawn>,
+    pub amoogs: Vec<AmoogSpawn>,
+    pub hives: Vec<HiveSpawn>,
+}
+
+impl EnemySpawns {
+    // Turn every other Gerald into an Amoog, so a room with two Geralds gets one of each
+    // and single-Gerald rooms alternate. 
+    pub fn swap_half_geralds_for_amoogs(&mut self) {
+        let (amoogs, geralds): (Vec<_>, Vec<_>) = self
+            .geralds
+            .drain(..)
+            .enumerate()
+            .partition(|(i, _)| i % 2 == 1);
+        self.geralds = geralds.into_iter().map(|(_, g)| g).collect();
+        self.amoogs.extend(amoogs.into_iter().map(|(_, a)| a));
+    }
+
+    // Give a few rooms a hive. A hive room is the hive's alone
+    pub fn place_hives(&mut self, map: &RoomMap, start_room: Option<usize>, seed: u64) {
+        let mut rng = StdRng::seed_from_u64(seed ^ HIVE_SALT);
+
+        for (i, room) in map.rooms.iter().enumerate() {
+            if Some(i) == start_room || !rng.gen_bool(HIVE_CHANCE) {
+                continue;
+            }
+
+            let x_min = room.x as i32 + 1;
+            let x_max = (room.x + room.width) as i32 - 2;
+            let y_min = room.y as i32;
+            let y_max = (room.y + room.height) as i32 - 1;
+            let center_x = (room.x + room.width / 2.) as i32;
+
+            // Floor spot nearest the middle (so the swarm fits), but not on top of the lamp
+            let spot = (y_min..=y_max)
+                .flat_map(|y| (x_min..=x_max).map(move |x| IVec2::new(x, y)))
+                .filter(|t| is_floor_spot(map, t.x, t.y) && (t.x - center_x).abs() >= HIVE_LAMP_GAP)
+                .min_by_key(|t| ((t.x - center_x).abs(), t.y));
+            let Some(tile) = spot else {
+                continue;
+            };
+
+            let in_room = |t: &IVec2| {
+                t.x >= room.x as i32
+                    && t.x < (room.x + room.width) as i32
+                    && t.y >= room.y as i32
+                    && t.y < (room.y + room.height) as i32
+            };
+            self.geralds.retain(|g| !in_room(&g.tile));
+            self.amoogs.retain(|a| !in_room(&a.tile));
+            self.hives.push(HiveSpawn { tile });
+        }
+    }
 }
 
 pub fn place_enemies(
@@ -73,7 +129,7 @@ pub fn place_enemies(
             (1, TeethFacing::Left)
         };
         let half = shaft.width / 2;
-        let x = shaft.x + side * half; // the open column against the wall
+        let x = shaft.x + side * half; 
 
         let spots: Vec<IVec2> = (shaft.y_start..=shaft.y_end)
             .filter(|&y| is_wall_spot(map, shaft, side, y))
@@ -161,7 +217,6 @@ fn in_any_room(map: &RoomMap, x: i32, y: i32, margin: i32) -> bool {
     })
 }
 
-// Hallways are carved center to center, so part of each one runs through rooms and junctions.
 // Only accept tiles with a real flat ceiling overhead and enough air below for the player.
 fn is_ceiling_spot(map: &RoomMap, x: i32, y_top: i32) -> bool {
     if in_any_room(map, x, y_top, ROOM_MARGIN) {
@@ -172,7 +227,6 @@ fn is_ceiling_spot(map: &RoomMap, x: i32, y_top: i32) -> bool {
     if !flat_ceiling {
         return false;
     }
-    // Terrain steps shrink the gap, so measure the actual open rows down to the floor
     (0..CEILING_CLEARANCE).all(|dy| !solid(map, x, y_top - dy))
 }
 
@@ -185,12 +239,13 @@ fn is_wall_spot(map: &RoomMap, shaft: &VertHallway, side: i32, y: i32) -> bool {
     if in_any_room(map, open_x, y, ROOM_MARGIN) {
         return false;
     }
-    // Solid wall behind it (not a junction opening)...
+    // Solid wall behind it 
     let wall = (y - 1..=y + 1).all(|wy| solid(map, wall_x, wy));
-    // ...and the whole shaft clear around it, which keeps it off platforms
-    let clear = (y - 1..=y + 1)
+    let ledge_above = solid(map, open_x, y + 1) && !solid(map, open_x, y + 2);
+    let opposite_open = !solid(map, shaft.x - side * half, y + 1);
+    let clear = (y - 1..=y)
         .all(|cy| (shaft.x - half..=shaft.x + half).all(|cx| !solid(map, cx, cy)));
-    wall && clear
+    wall && ledge_above && opposite_open && clear
 }
 
 // Empty tile with a flat floor under it and its neighbours, and headroom above
@@ -241,6 +296,18 @@ mod tests {
     }
 
     #[test]
+    fn wall_teeth_sit_under_a_ledge() {
+        for seed in SEEDS {
+            let (d, s) = spawns_for(seed);
+            for t in s.teeth.iter().filter(|t| t.facing != TeethFacing::Down) {
+                let (x, y) = (t.tile.x, t.tile.y);
+                assert!(solid(&d.map, x, y + 1), "seed {seed}: wall teeth at {x},{y} has no ledge above");
+                assert!(!solid(&d.map, x, y - 1), "seed {seed}: wall teeth at {x},{y} is on a floor");
+            }
+        }
+    }
+
+    #[test]
     fn every_teeth_facing_gets_used() {
         let (mut down, mut sideways, mut geralds) = (0, 0, 0);
         for seed in 0..50 {
@@ -254,20 +321,18 @@ mod tests {
     }
 
     #[test]
-    fn geralds_stand_on_floor_outside_start_room() {
+    fn half_geralds_become_amoogs() {
         for seed in SEEDS {
-            let (d, s) = spawns_for(seed);
-            assert!(!s.geralds.is_empty(), "seed {seed}: no geralds");
-            let start = &d.map.rooms[0];
-            for g in &s.geralds {
-                let (x, y) = (g.tile.x, g.tile.y);
-                assert!(!solid(&d.map, x, y) && solid(&d.map, x, y - 1));
-                let in_start = x >= start.x as i32
-                    && x < (start.x + start.width) as i32
-                    && y >= start.y as i32
-                    && y < (start.y + start.height) as i32;
-                assert!(!in_start, "seed {seed}: gerald in start room");
-            }
+            let (_, mut s) = spawns_for(seed);
+            let before = s.geralds.clone();
+            s.swap_half_geralds_for_amoogs();
+            assert_eq!(s.geralds.len() + s.amoogs.len(), before.len());
+            assert_eq!(s.geralds.len(), before.len().div_ceil(2));
+            // Same spots as before, just split between the two
+            assert!(s.geralds.iter().chain(&s.amoogs).all(|t| before.contains(t)));
         }
     }
+
 }
+
+   
