@@ -6,12 +6,8 @@ use crate::{
     level::ActiveLevel,
     loading::despawn_with,
     player::{PLAYER_SIZE, Player},
-    proc_gen::room_generation::{Room, TileType},
+    proc_gen::room_generation::{LEVEL_ONE, LEVEL_TWO, Room, TileType},
 };
-
-// Seeds for the two generated levels. Change a number to get a different dungeon.
-const LEVEL_ONE_SEED: u64 = 1;
-const LEVEL_TWO_SEED: u64 = 2;
 
 const DOOR_SIZE: Vec2 = Vec2::new(TILE_SIZE, TILE_SIZE * 2.);
 
@@ -51,8 +47,8 @@ impl LevelId {
     fn build(self) -> ActiveLevel {
         match self {
             LevelId::Demo => ActiveLevel::default(),
-            LevelId::One => ActiveLevel::procedural(LEVEL_ONE_SEED),
-            LevelId::Two => ActiveLevel::procedural(LEVEL_TWO_SEED),
+            LevelId::One => ActiveLevel::procedural(LEVEL_ONE),
+            LevelId::Two => ActiveLevel::procedural(LEVEL_TWO),
             LevelId::Boss => boss_level(),
         }
     }

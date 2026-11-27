@@ -62,6 +62,8 @@ enum GameState {
     Playing,
     RoomGeneration,
     ProcGenMenu,
+    PreviewLevelOne,
+    PreviewLevelTwo,
     Triangulation,
     Mst,
     AISlideshow,
