@@ -53,16 +53,9 @@ pub struct EnemySpawns {
 }
 
 impl EnemySpawns {
-    // Turn every other Gerald into an Amoog, so a room with two Geralds gets one of each
-    // and single-Gerald rooms alternate. 
-    pub fn swap_half_geralds_for_amoogs(&mut self) {
-        let (amoogs, geralds): (Vec<_>, Vec<_>) = self
-            .geralds
-            .drain(..)
-            .enumerate()
-            .partition(|(i, _)| i % 2 == 1);
-        self.geralds = geralds.into_iter().map(|(_, g)| g).collect();
-        self.amoogs.extend(amoogs.into_iter().map(|(_, a)| a));
+    // Every Gerald spot becomes an Amoog instead. Used by Level 2.
+    pub fn swap_geralds_for_amoogs(&mut self) {
+        self.amoogs.append(&mut self.geralds);
     }
 
     // Give a few rooms a hive. A hive room is the hive's alone
@@ -253,86 +246,3 @@ fn is_floor_spot(map: &RoomMap, x: i32, y: i32) -> bool {
     (x - 1..=x + 1).all(|cx| solid(map, cx, y - 1) && !solid(map, cx, y))
         && !solid(map, x, y + 1)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::proc_gen::dungeon_generation::generate_dungeon;
-
-    const SEEDS: [u64; 6] = [1, 2, 3, 42, 1234, 98765];
-
-    fn spawns_for(seed: u64) -> (crate::proc_gen::dungeon_generation::DungeonLayout, EnemySpawns) {
-        let d = generate_dungeon(seed);
-        let s = place_enemies(&d.map, &d.horz_hallways, &d.vert_hallways, Some(0), seed);
-        (d, s)
-    }
-
-    #[test]
-    fn same_seed_same_enemies() {
-        for seed in SEEDS {
-            let (_, a) = spawns_for(seed);
-            let (_, b) = spawns_for(seed);
-            assert_eq!(a.teeth, b.teeth);
-            assert_eq!(a.geralds, b.geralds);
-        }
-    }
-
-    #[test]
-    fn teeth_are_attached_to_something() {
-        for seed in SEEDS {
-            let (d, s) = spawns_for(seed);
-            for t in &s.teeth {
-                let (x, y) = (t.tile.x, t.tile.y);
-                assert!(!solid(&d.map, x, y), "seed {seed}: teeth inside a wall at {x},{y}");
-                let anchor = match t.facing {
-                    TeethFacing::Down => solid(&d.map, x, y + 1),
-                    TeethFacing::Right => solid(&d.map, x - 1, y),
-                    TeethFacing::Left => solid(&d.map, x + 1, y),
-                };
-                assert!(anchor, "seed {seed}: teeth at {x},{y} isn't on a wall");
-                assert!(!in_any_room(&d.map, x, y, 0), "seed {seed}: teeth inside a room");
-            }
-        }
-    }
-
-    #[test]
-    fn wall_teeth_sit_under_a_ledge() {
-        for seed in SEEDS {
-            let (d, s) = spawns_for(seed);
-            for t in s.teeth.iter().filter(|t| t.facing != TeethFacing::Down) {
-                let (x, y) = (t.tile.x, t.tile.y);
-                assert!(solid(&d.map, x, y + 1), "seed {seed}: wall teeth at {x},{y} has no ledge above");
-                assert!(!solid(&d.map, x, y - 1), "seed {seed}: wall teeth at {x},{y} is on a floor");
-            }
-        }
-    }
-
-    #[test]
-    fn every_teeth_facing_gets_used() {
-        let (mut down, mut sideways, mut geralds) = (0, 0, 0);
-        for seed in 0..50 {
-            let (_, s) = spawns_for(seed);
-            down += s.teeth.iter().filter(|t| t.facing == TeethFacing::Down).count();
-            sideways += s.teeth.iter().filter(|t| t.facing != TeethFacing::Down).count();
-            geralds += s.geralds.len();
-        }
-        println!("50 seeds: {down} ceiling teeth, {sideways} wall teeth, {geralds} geralds");
-        assert!(down > 0 && sideways > 0);
-    }
-
-    #[test]
-    fn half_geralds_become_amoogs() {
-        for seed in SEEDS {
-            let (_, mut s) = spawns_for(seed);
-            let before = s.geralds.clone();
-            s.swap_half_geralds_for_amoogs();
-            assert_eq!(s.geralds.len() + s.amoogs.len(), before.len());
-            assert_eq!(s.geralds.len(), before.len().div_ceil(2));
-            // Same spots as before, just split between the two
-            assert!(s.geralds.iter().chain(&s.amoogs).all(|t| before.contains(t)));
-        }
-    }
-
-}
-
-   

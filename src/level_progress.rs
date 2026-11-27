@@ -53,10 +53,10 @@ impl LevelId {
             LevelId::Demo => ActiveLevel::default(),
             LevelId::One => ActiveLevel::procedural(LEVEL_ONE_SEED),
             LevelId::Two => {
-                // Same layout rules as Level 1, but about half the Geralds are Amoogs,
+                // Same layout rules as Level 1, but Amoogs instead of Geralds,
                 // and the odd room is taken over by a hive
                 let mut level = ActiveLevel::procedural(LEVEL_TWO_SEED);
-                level.enemies.swap_half_geralds_for_amoogs();
+                level.enemies.swap_geralds_for_amoogs();
                 level.add_hives(LEVEL_TWO_SEED);
                 level
             }
