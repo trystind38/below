@@ -110,7 +110,7 @@ fn setup_mst_preview(
     camera: Single<(&mut Transform, &mut Projection), With<Camera2d>>,
     seed: Res<ProcGenSeed>,
 ) {
-    let dungeon = generate_dungeon(seed.0);
+    let dungeon = generate_dungeon(seed.specs());
 
     map_preview(&dungeon.map, &mut commands, &wall_image.0);
 

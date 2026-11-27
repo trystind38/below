@@ -1,6 +1,7 @@
 use crate::{
     GameState,
     loading::{LoadingAssets, despawn_with},
+    level::ActiveLevel,
 };
 use bevy::{prelude::*, window::PrimaryWindow};
 use rand::{Rng, SeedableRng, rngs::StdRng};
@@ -35,15 +36,41 @@ impl SeededRng {
 #[derive(Resource)]
 pub struct RoomWallImage(pub Handle<Image>);
 
-// Shared by all proc gen previews so each stage shows the same dungeon
+#[derive(Clone, Copy)]
+pub struct DungeonSpecs {
+    pub seed: u64,
+    pub map_width: usize,
+    pub map_height: usize,
+    pub room_count: usize,
+}
+
+pub const LEVEL_ONE: DungeonSpecs = DungeonSpecs {
+    seed: 1,
+    map_width: 192,
+    map_height: 144,
+    room_count: 12,
+};
+
+pub const LEVEL_TWO: DungeonSpecs = DungeonSpecs {
+    seed: 2,
+    map_width: 240,
+    map_height: 172,
+    room_count: 18,
+};
+
 #[derive(Resource)]
 pub struct ProcGenSeed(pub u64);
 
 impl ProcGenSeed {
     fn random() -> Self {
-        let seed = rand::random::<u64>();
-        info!("Proc gen seed: {seed}");
-        Self(seed)
+        Self(rand::random())
+    }
+
+    pub fn specs(&self) -> DungeonSpecs {
+        DungeonSpecs {
+            seed: self.0,
+            ..LEVEL_ONE
+        }
     }
 }
 
@@ -105,36 +132,33 @@ fn load_room(
     commands.insert_resource(RoomWallImage(room_wall_image_handle));
 }
 
-pub fn map_rooms(seed: u64) -> RoomMap {
-    const MAP_WIDTH: usize = 160;
-    const MAP_HEIGHT: usize = 120;
-    const MAX_ROOMS: usize = 12;
-    // Prevent it from looping forever or getting stuck
+
+pub fn map_rooms(settings: DungeonSpecs) -> RoomMap {
     const MAX_ATTEMPTS: usize = 1_000;
-    const MIN_WIDTH: usize = 16;
-    const MAX_WIDTH: usize = 26;
-    const MIN_HEIGHT: usize = 10;
-    const MAX_HEIGHT: usize = 16;
+    const MIN_WIDTH: usize = 22;
+    const MAX_WIDTH: usize = 30;
+    const MIN_HEIGHT: usize = 12;
+    const MAX_HEIGHT: usize = 18;
     const GAP: f64 = 1.0;
 
     let mut map = RoomMap {
-        tiles: vec![TileType::Wall; MAP_WIDTH * MAP_HEIGHT],
+        tiles: vec![TileType::Wall; settings.map_width * settings.map_height],
         rooms: Vec::new(),
-        width: MAP_WIDTH,
-        height: MAP_HEIGHT,
+        width: settings.map_width,
+        height: settings.map_height,
     };
 
-    let mut rng = StdRng::seed_from_u64(seed);
+    let mut rng = StdRng::seed_from_u64(settings.seed);
 
     for _ in 0..MAX_ATTEMPTS {
-        if map.rooms.len() >= MAX_ROOMS {
+        if map.rooms.len() >= settings.room_count {
             break;
         }
 
         let width = rng.gen_range(MIN_WIDTH..=MAX_WIDTH);
         let height = rng.gen_range(MIN_HEIGHT..=MAX_HEIGHT);
-        let x = rng.gen_range(1..=MAP_WIDTH - width - 1);
-        let y = rng.gen_range(1..=MAP_HEIGHT - height - 1);
+        let x = rng.gen_range(1..=map.width - width - 1);
+        let y = rng.gen_range(1..=map.height - height - 1);
 
         let new_room = Room::new(x as f64, y as f64, width as f64, height as f64);
 
@@ -149,16 +173,14 @@ pub fn map_rooms(seed: u64) -> RoomMap {
             continue;
         }
 
-        // Carve out the room in the map
         for tile_y in y..y + height {
             for tile_x in x..x + width {
-                let index = tile_y * MAP_WIDTH + tile_x;
+                let index = tile_y * map.width + tile_x;
                 map.tiles[index] = TileType::Empty;
             }
         }
         map.rooms.push(new_room);
     }
-
     map
 }
 
@@ -208,16 +230,38 @@ pub fn map_preview(map: &RoomMap, commands: &mut Commands, wall_image: &Handle<I
     }
 }
 
+// Existing Room Generation button: show the rooms before carving hallways.
 fn setup_room_preview(
     mut commands: Commands,
+    seed: Res<ProcGenSeed>,
     wall_image: Res<RoomWallImage>,
     window: Single<&Window, With<PrimaryWindow>>,
     camera: Single<(&mut Transform, &mut Projection), With<Camera2d>>,
-    seed: Res<ProcGenSeed>,
 ) {
-    let map = map_rooms(seed.0);
+    let map = map_rooms(seed.specs());
     map_preview(&map, &mut commands, &wall_image.0);
     frame_camera(&map, window.into_inner(), camera);
+}
+
+// Preview Level 1 and Preview Level 2: show the finished playable tile map.
+fn setup_level_preview(
+    mut commands: Commands,
+    state: Res<State<GameState>>,
+    wall_image: Res<RoomWallImage>,
+    window: Single<&Window, With<PrimaryWindow>>,
+    camera: Single<(&mut Transform, &mut Projection), With<Camera2d>>,
+) {
+    let settings = match state.get() {
+        GameState::PreviewLevelOne => LEVEL_ONE,
+        GameState::PreviewLevelTwo => LEVEL_TWO,
+        _ => return,
+    };
+
+    let active = ActiveLevel::procedural(settings);
+    if let Some(map) = active.map.as_ref() {
+        map_preview(map, &mut commands, &wall_image.0);
+        frame_camera(map, window.into_inner(), camera);
+    }
 }
 
 pub fn frame_camera(
@@ -246,18 +290,28 @@ impl Plugin for RoomGenerationPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(ProcGenSeed::random())
             .add_systems(Startup, load_room)
-            // New dungeon each time the demo is opened from the main menu,
-            // but not when backing out of a preview to the proc gen menu
             .add_systems(
                 OnTransition {
                     exited: GameState::MainMenu,
                     entered: GameState::ProcGenMenu,
                 },
-                |mut commands: Commands| commands.insert_resource(ProcGenSeed::random()),
+                |mut commands: Commands| {
+                    commands.insert_resource(ProcGenSeed::random());
+                },
             )
             .add_systems(OnEnter(GameState::RoomGeneration), setup_room_preview)
+            .add_systems(OnEnter(GameState::PreviewLevelOne), setup_level_preview)
+            .add_systems(OnEnter(GameState::PreviewLevelTwo), setup_level_preview)
             .add_systems(
                 OnExit(GameState::RoomGeneration),
+                despawn_with::<RoomPreview>,
+            )
+            .add_systems(
+                OnExit(GameState::PreviewLevelOne),
+                despawn_with::<RoomPreview>,
+            )
+            .add_systems(
+                OnExit(GameState::PreviewLevelTwo),
                 despawn_with::<RoomPreview>,
             );
     }

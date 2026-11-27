@@ -11,7 +11,7 @@ use crate::{
     proc_gen::{
         dungeon_generation::{DungeonLayout, generate_dungeon},
         enemy_placement::{EnemySpawns, place_enemies},
-        room_generation::{RoomMap, TileType},
+        room_generation::{DungeonSpecs, RoomMap, TileType},
     },
 };
 
@@ -249,14 +249,13 @@ impl Default for ActiveLevel {
 }
 
 impl ActiveLevel {
-    pub fn procedural(seed: u64) -> Self {
+    pub fn procedural(settings: DungeonSpecs) -> Self {
         let DungeonLayout {
             mut map,
             vert_hallways,
             horz_hallways,
             ..
-        } = generate_dungeon(seed);
-        info!("Playable dungeon seed: {seed}");
+        } = generate_dungeon(settings);
 
         // Choose the room nearest the map's upper-left corner.
         let (start_room, room) = map
