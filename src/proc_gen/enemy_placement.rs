@@ -202,14 +202,15 @@ fn is_floor_spot(map: &RoomMap, x: i32, y: i32) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::proc_gen::dungeon_generation::{DungeonSpecs, LEVEL_ONE, LEVEL_TWO};
+    use crate::proc_gen::dungeon_generation::generate_dungeon;
+    use crate::proc_gen::room_generation::{DungeonSpecs, LEVEL_ONE};
 
     const SEEDS: [u64; 6] = [1, 2, 3, 42, 1234, 98765];
 
     fn spawns_for(seed: u64) -> (crate::proc_gen::dungeon_generation::DungeonLayout, EnemySpawns) {
         let d = generate_dungeon(DungeonSpecs {
             seed,
-            level: LEVEL_ONE,
+            ..LEVEL_ONE
         });
         let s = place_enemies(&d.map, &d.horz_hallways, &d.vert_hallways, Some(0), seed);
         (d, s)
