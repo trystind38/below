@@ -7,8 +7,8 @@ use crate::proc_gen::{
     room_generation::{RoomMap, TileType},
 };
 
-const TEETH_CHANCE: f64 = 0.6; 
-const TEETH_SPACING: i32 = 6; 
+const FLYTRAP_CHANCE: f64 = 0.6; 
+const FLYTRAP_SPACING: i32 = 6; 
 const CEILING_CLEARANCE: i32 = 4;  
 const GERALD_SPACING: i32 = 5; 
 const WIDE_ROOM: f64 = 16.; 
@@ -18,18 +18,23 @@ const HIVE_CHANCE: f64 = 0.15;
 const HIVE_LAMP_GAP: i32 = 3; 
 const HIVE_SALT: u64 = 0x41E5_B0B0_0000_0001;
 const SEED_SALT: u64 = 0x7EE7_4E1D_E5A1_7000;
+const ORB_CHANCE: f64 = 0.5;
+const ORB_ROLLS: usize = 4;
+const ORB_SPACING: i32 = 3;
+const ORB_LAMP_GAP: i32 = 3;
+const ORB_SALT: u64 = 0x0B5_0000_0000_0002;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum TeethFacing {
+pub enum FlytrapFacing {
     Down,  
     Left,  
     Right, 
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct TeethSpawn {
+pub struct FlytrapSpawn {
     pub tile: IVec2,
-    pub facing: TeethFacing,
+    pub facing: FlytrapFacing,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -46,7 +51,7 @@ pub struct HiveSpawn {
 
 #[derive(Default)]
 pub struct EnemySpawns {
-    pub teeth: Vec<TeethSpawn>,
+    pub flytraps: Vec<FlytrapSpawn>,
     pub geralds: Vec<GeraldSpawn>,
     pub amoogs: Vec<AmoogSpawn>,
     pub hives: Vec<HiveSpawn>,
@@ -105,21 +110,21 @@ pub fn place_enemies(
     let mut rng = StdRng::seed_from_u64(seed ^ SEED_SALT);
     let mut spawns = EnemySpawns::default();
 
-    // Upside-down Teeth on horizontal hallway ceilings
+    // Upside-down Flytraps on horizontal hallway ceilings
     for hallway in horz_hallways {
         let spots: Vec<IVec2> = (hallway.x_start..=hallway.x_end)
             .filter(|&x| is_ceiling_spot(map, x, hallway.y_top))
             .map(|x| IVec2::new(x, hallway.y_top))
             .collect();
-        try_place_teeth(&mut rng, &spots, TeethFacing::Down, &mut spawns.teeth);
+        try_place_flytrap(&mut rng, &spots, FlytrapFacing::Down, &mut spawns.flytraps);
     }
 
-    // Sideways Teeth on vertical shaft walls, one random side per shaft
+    // Sideways Flytraps on vertical shaft walls, one random side per shaft
     for shaft in vert_hallways {
         let (side, facing) = if rng.gen_bool(0.5) {
-            (-1, TeethFacing::Right)
+            (-1, FlytrapFacing::Right)
         } else {
-            (1, TeethFacing::Left)
+            (1, FlytrapFacing::Left)
         };
         let half = shaft.width / 2;
         let x = shaft.x + side * half; 
@@ -128,7 +133,7 @@ pub fn place_enemies(
             .filter(|&y| is_wall_spot(map, shaft, side, y))
             .map(|y| IVec2::new(x, y))
             .collect();
-        try_place_teeth(&mut rng, &spots, facing, &mut spawns.teeth);
+        try_place_flytrap(&mut rng, &spots, facing, &mut spawns.flytraps);
     }
 
     // Geralds on room floors
@@ -164,18 +169,50 @@ pub fn place_enemies(
     spawns
 }
 
-fn try_place_teeth(
+pub fn place_orbs(map: &RoomMap, start_room: Option<usize>, seed: u64) -> Vec<IVec2> {
+    let mut rng = StdRng::seed_from_u64(seed ^ ORB_SALT);
+    let mut orbs = Vec::new();
+
+    for (i, room) in map.rooms.iter().enumerate() {
+        if Some(i) == start_room {
+            continue;
+        }
+
+        let x_min = room.x as i32 + 1;
+        let x_max = (room.x + room.width) as i32 - 2;
+        let y_min = room.y as i32;
+        let y_max = (room.y + room.height) as i32 - 1;
+        let center_x = (room.x + room.width / 2.) as i32;
+
+        let spots: Vec<IVec2> = (y_min..=y_max)
+            .flat_map(|y| (x_min..=x_max).map(move |x| IVec2::new(x, y)))
+            .filter(|t| is_floor_spot(map, t.x, t.y) && (t.x - center_x).abs() >= ORB_LAMP_GAP)
+            .collect();
+        for _ in 0..ORB_ROLLS {
+            if !rng.gen_bool(ORB_CHANCE) {
+                continue;
+            }
+            if let Some(tile) = pick_spaced(&mut rng, &spots, &orbs, ORB_SPACING) {
+                orbs.push(tile);
+            }
+        }
+    }
+
+    orbs
+}
+
+fn try_place_flytrap(
     rng: &mut StdRng,
     spots: &[IVec2],
-    facing: TeethFacing,
-    teeth: &mut Vec<TeethSpawn>,
+    facing: FlytrapFacing,
+    flytraps: &mut Vec<FlytrapSpawn>,
 ) {
-    if spots.is_empty() || !rng.gen_bool(TEETH_CHANCE) {
+    if spots.is_empty() || !rng.gen_bool(FLYTRAP_CHANCE) {
         return;
     }
-    let taken: Vec<IVec2> = teeth.iter().map(|t| t.tile).collect();
-    if let Some(tile) = pick_spaced(rng, spots, &taken, TEETH_SPACING) {
-        teeth.push(TeethSpawn { tile, facing });
+    let taken: Vec<IVec2> = flytraps.iter().map(|t| t.tile).collect();
+    if let Some(tile) = pick_spaced(rng, spots, &taken, FLYTRAP_SPACING) {
+        flytraps.push(FlytrapSpawn { tile, facing });
     }
 }
 

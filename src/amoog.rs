@@ -9,7 +9,7 @@ use crate::{
     shining_road::{FLEE_SPEED_MULT, Scared},
     sound::{SoundEvent, SoundKind},
     stats::{AMOOG, Health, HitCooldown, Hitbox, MoveSpeed},
-    teeth::{FIREBALL_GRAVITY, Fireball},
+    flytrap::{FIREBALL_GRAVITY, Fireball},
 };
 
 const SPRITE_SCALE: f32 = 2.;

@@ -10,7 +10,7 @@ use crate::{
     player::PLAYER_SIZE,
     proc_gen::{
         dungeon_generation::{DungeonLayout, generate_dungeon},
-        enemy_placement::{EnemySpawns, place_enemies},
+        enemy_placement::{EnemySpawns, place_enemies, place_orbs},
         room_generation::{RoomMap, TileType},
     },
 };
@@ -38,6 +38,7 @@ pub struct ActiveLevel {
     pub bounds_max: Vec2,
     pub enemies: EnemySpawns,
     pub lamps: Vec<Vec2>,
+    pub orbs: Vec<Vec2>,
 }
 
 pub struct LevelPlugin;
@@ -240,6 +241,7 @@ impl Default for ActiveLevel {
             bounds_max: Vec2::new(LEVEL_RIGHT, LEVEL_TOP),
             enemies: EnemySpawns::default(),
             lamps: vec![Vec2::new(4. * TILE_SIZE, LEVEL_BOTTOM + TILE_SIZE + 16.)],
+            orbs: Vec::new(),
         }
     }
 }
@@ -285,8 +287,8 @@ impl ActiveLevel {
         // After the landing pad so enemies see the final tiles; the start room stays empty
         let enemies = place_enemies(&map, &horz_hallways, &vert_hallways, Some(start_room), seed);
         info!(
-            "Placed {} teeth and {} geralds",
-            enemies.teeth.len(),
+            "Placed {} flytraps and {} geralds",
+            enemies.flytraps.len(),
             enemies.geralds.len()
         );
         let lamps: Vec<Vec2> = map
@@ -302,6 +304,10 @@ impl ActiveLevel {
                 Vec2::new((x as f32 + 0.5) * TILE_SIZE, (y as f32 + 0.5) * TILE_SIZE)
             })
             .collect();
+        let orbs = place_orbs(&map, Some(start_room), seed)
+            .into_iter()
+            .map(|t| Vec2::new((t.x as f32 + 0.5) * TILE_SIZE, (t.y as f32 + 1.) * TILE_SIZE))
+            .collect();
         Self {
             spawn: Vec2::new(
                 (spawn_x as f32 + 0.5) * TILE_SIZE,
@@ -312,6 +318,7 @@ impl ActiveLevel {
             map: Some(map),
             enemies,
             lamps,
+            orbs,
         }
     }
 }

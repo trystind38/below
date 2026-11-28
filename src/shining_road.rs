@@ -157,7 +157,7 @@ fn scare_enemies(
     let beam_size = Vec2::new(ROAD_LENGTH, ROAD_WIDTH);
 
     for (entity, tf, hitbox, speed, scared) in &mut enemies {
-        // an enemy that can't move (Straight Teeth) can't run, so the light ignores it
+        // an enemy that can't move (Straight Flytrap) can't run, so the light ignores it
         if speed.0 <= 0. {
             continue;
         }

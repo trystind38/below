@@ -12,10 +12,11 @@ use crate::{
     burst_meter::POWER_RGB,
     combat::Bullet,
     loading::{LoadingAssets, despawn_with},
+    orb::Orb,
     player::{Player, PlayerSystems},
     shining_road::{ROAD_LENGTH, ROAD_WIDTH, RoadBeam},
     stats::{Enemy, Health, HitCooldown, Invulnerable},
-    teeth::Fireball,
+    flytrap::Fireball,
 };
 
 const SHADER_PATH: &str = "shaders/darkness.wgsl";
@@ -37,6 +38,10 @@ const FIREBALL_LIGHT_RADIUS: f32 = 72.;
 const FIREBALL_FLICKER: f32 = 0.08;
 const FIREBALL_FALLBACK: Vec3 = Vec3::new(1., 0.45, 0.1);
 const ROAD_LIGHT: f32 = 0.9;
+const ORB_LIGHT: f32 = 0.8;
+const ORB_LIGHT_RADIUS: f32 = 64.;
+const ORB_FLICKER: f32 = 0.05;
+const ORB_RGB: Vec3 = Vec3::new(1., 0.95, 0.8);
 
 const BURN_DAMAGE: f32 = 1.;
 const BURN_INTERVAL: f32 = 0.5;
@@ -249,6 +254,7 @@ fn update_lights(
     beams: Query<&Transform, With<RoadBeam>>,
     fireballs: Query<(Entity, &Transform), With<Fireball>>,
     bullets: Query<(&Transform, &Sprite), With<Bullet>>,
+    orbs: Query<(Entity, &Transform), With<Orb>>,
 ) {
     let (cam_tf, projection) = camera.into_inner();
     let Projection::Orthographic(ortho) = projection else {
@@ -300,6 +306,12 @@ fn update_lights(
     for (tf, sprite) in &bullets {
         let pos = tf.translation.truncate();
         add(pos, pos, linear(sprite.color), BULLET_LIGHT, BULLET_LIGHT_RADIUS);
+    }
+
+    for (entity, tf) in &orbs {
+        let pos = tf.translation.truncate();
+        let f = flicker(now, (entity.to_bits() % 997) as f32, ORB_FLICKER);
+        add(pos, pos, ORB_RGB, ORB_LIGHT * f, ORB_LIGHT_RADIUS * f);
     }
 
     if let Some(mut material) = materials.get_mut(&darkness.0) {

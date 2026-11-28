@@ -88,6 +88,7 @@ pub fn boss_level() -> ActiveLevel {
             Vec2::new(world_w * 0.35, 1.5 * TILE_SIZE),
             Vec2::new(world_w * 0.7, 1.5 * TILE_SIZE),
         ],
+        orbs: Vec::new(),
     }
 }
 
