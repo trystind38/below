@@ -89,11 +89,11 @@ pub const AMOOG: EnemyStats = EnemyStats {
     speed: 50.0,
 };
 
-pub const STRAIGHT_TEETH: EnemyStats = EnemyStats {
+pub const STRAIGHT_FLYTRAP: EnemyStats = EnemyStats {
     health: f32::INFINITY,
     damage: 20.0,
     speed: 0.0,
 };
-//straight teeth is invulnerable but it has a hitbox
+//straight flytrap is invulnerable but it has a hitbox
 //because it can still be hit by the player, but it won't take damage unless hit by a powerup.
-//commands.spawn((STRAIGHT_TEETH.bundle(), Invulnerable, Hitbox(Vec2::new(32., 32.))));
+//commands.spawn((STRAIGHT_FLYTRAP.bundle(), Invulnerable, Hitbox(Vec2::new(32., 32.))));

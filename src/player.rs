@@ -22,6 +22,8 @@ const JUMP_BUFFER: f32 = 0.1;
 const FAST_FALL_MULT: f32 = 1.3;
 const FAST_FALL_KICK: f32 = 150.;
 const AIR_ACCEL: f32 = 3000.;
+// TEMP testing: unlimited midair jumps while levels aren't all traversable. 
+const INFINITE_JUMPS: bool = true;
 
 const FRAME_SIZE: u32 = 32;
 const WALK_FRAMES: usize = 4;
@@ -206,7 +208,7 @@ fn move_player(
     if keys.any_just_pressed([KeyCode::Space, KeyCode::KeyW, KeyCode::ArrowUp]) {
         player.jump_buffer = JUMP_BUFFER;
     }
-    if player.grounded && player.jump_buffer > 0. {
+    if (player.grounded || INFINITE_JUMPS) && player.jump_buffer > 0. {
         player.vel.y = JUMP_SPEED;
         player.jump_buffer = 0.;
     }

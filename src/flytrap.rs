@@ -6,15 +6,15 @@ use crate::{
     GameState, LEVEL_BOTTOM, TILE_SIZE,
     level::{ActiveLevel, Brick, intro_only},
     loading::{LoadingAssets, despawn_with},
-    proc_gen::enemy_placement::TeethFacing,
+    proc_gen::enemy_placement::FlytrapFacing,
     player::{Player, PlayerSystems},
-    stats::{HIT_COOLDOWN, Health, HitCooldown, Hitbox, Invulnerable, STRAIGHT_TEETH},
+    stats::{HIT_COOLDOWN, Health, HitCooldown, Hitbox, Invulnerable, STRAIGHT_FLYTRAP},
 };
 
-const TEETH_DRAW_SIZE: Vec2 = Vec2::new(64., 64.);
-const TEETH_SIZE: Vec2 = Vec2::new(36., 50.);
-const TEETH_BOTTOM_PADDING: f32 = 6.;
-const TEETH_X: f32 = 640.;
+const FLYTRAP_DRAW_SIZE: Vec2 = Vec2::new(64., 64.);
+const FLYTRAP_SIZE: Vec2 = Vec2::new(36., 50.);
+const FLYTRAP_BOTTOM_PADDING: f32 = 6.;
+const FLYTRAP_X: f32 = 640.;
 
 const FIREBALL_DRAW_SIZE: Vec2 = Vec2::new(24., 24.);
 const FIREBALL_SIZE: Vec2 = Vec2::new(14., 14.);
@@ -24,7 +24,7 @@ pub const FIREBALL_GRAVITY: f32 = 512.;
 const FIREBALL_DAMAGE: f32 = 10.;
 
 #[derive(Component)]
-pub struct Teeth {
+pub struct Flytrap {
     pub fire_timer: Timer,
     // Which way the mouth points; fireballs launch this way
     pub dir: Vec2,
@@ -36,25 +36,25 @@ pub struct Fireball {
 }
 
 #[derive(Resource)]
-struct TeethImages {
-    teeth: Handle<Image>,
+struct FlytrapImages {
+    flytrap: Handle<Image>,
     fireball: Handle<Image>,
 }
 
-pub struct TeethPlugin;
-impl Plugin for TeethPlugin {
+pub struct FlytrapPlugin;
+impl Plugin for FlytrapPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, load_teeth)
+        app.add_systems(Startup, load_flytrap)
             .add_systems(
                 OnEnter(GameState::Playing),
                 (
-                    spawn_teeth.run_if(intro_only),
-                    spawn_level_teeth.run_if(not(intro_only)),
+                    spawn_flytrap.run_if(intro_only),
+                    spawn_level_flytraps.run_if(not(intro_only)),
                 ),
             )
             .add_systems(
                 FixedUpdate,
-                (teeth_shoot, move_fireballs)
+                (flytrap_shoot, move_fireballs)
                     .chain()
                     .run_if(in_state(GameState::Playing)),
             )
@@ -66,104 +66,102 @@ impl Plugin for TeethPlugin {
             )
             .add_systems(
                 OnExit(GameState::Playing),
-                (despawn_with::<Teeth>, despawn_with::<Fireball>),
+                (despawn_with::<Flytrap>, despawn_with::<Fireball>),
             );
     }
 }
 
-fn load_teeth(
+fn load_flytrap(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     mut loading_assets: ResMut<LoadingAssets>,
 ) {
-    let teeth: Handle<Image> = asset_server.load("enemy/teeth.png");
+    let flytrap: Handle<Image> = asset_server.load("enemy/flytrap.png");
     let fireball: Handle<Image> = asset_server.load("enemy/fireball.png");
 
-    loading_assets.0.push(teeth.clone().untyped());
+    loading_assets.0.push(flytrap.clone().untyped());
     loading_assets.0.push(fireball.clone().untyped());
 
-    commands.insert_resource(TeethImages { teeth, fireball });
+    commands.insert_resource(FlytrapImages { flytrap, fireball });
 }
 
-// Intro level: one Teeth standing on the floor
-fn spawn_teeth(mut commands: Commands, images: Res<TeethImages>) {
+// Intro level: one Flytrap standing on the floor
+fn spawn_flytrap(mut commands: Commands, images: Res<FlytrapImages>) {
     let pos = Vec2::new(
-        TEETH_X,
-        LEVEL_BOTTOM + TILE_SIZE + TEETH_DRAW_SIZE.y / 2. - TEETH_BOTTOM_PADDING,
+        FLYTRAP_X,
+        LEVEL_BOTTOM + TILE_SIZE + FLYTRAP_DRAW_SIZE.y / 2. - FLYTRAP_BOTTOM_PADDING,
     );
-    spawn_teeth_at(&mut commands, &images, pos, Vec2::Y);
+    spawn_flytrap_at(&mut commands, &images, pos, Vec2::Y);
 }
 
 // Procedural level: hanging from hallway ceilings and stuck to shaft walls
-fn spawn_level_teeth(mut commands: Commands, images: Res<TeethImages>, active: Res<ActiveLevel>) {
-    // Distance from the surface to the sprite's center (the art has a few px of padding at its base)
-    let inset = TEETH_DRAW_SIZE.y / 2. - TEETH_BOTTOM_PADDING;
+fn spawn_level_flytraps(mut commands: Commands, images: Res<FlytrapImages>, active: Res<ActiveLevel>) {
+    let inset = FLYTRAP_DRAW_SIZE.y / 2. - FLYTRAP_BOTTOM_PADDING;
 
-    for spawn in &active.enemies.teeth {
+    for spawn in &active.enemies.flytraps {
         let tile = spawn.tile.as_vec2();
         let (pos, dir) = match spawn.facing {
             // Ceiling is the top edge of the tile
-            TeethFacing::Down => (
+            FlytrapFacing::Down => (
                 Vec2::new((tile.x + 0.5) * TILE_SIZE, (tile.y + 1.) * TILE_SIZE - inset),
                 Vec2::NEG_Y,
             ),
             // Wall is the tile's left edge
-            TeethFacing::Right => (
+            FlytrapFacing::Right => (
                 Vec2::new(tile.x * TILE_SIZE + inset, (tile.y + 0.5) * TILE_SIZE),
                 Vec2::X,
             ),
             // Wall is the tile's right edge
-            TeethFacing::Left => (
+            FlytrapFacing::Left => (
                 Vec2::new((tile.x + 1.) * TILE_SIZE - inset, (tile.y + 0.5) * TILE_SIZE),
                 Vec2::NEG_X,
             ),
         };
-        spawn_teeth_at(&mut commands, &images, pos, dir);
+        spawn_flytrap_at(&mut commands, &images, pos, dir);
     }
 }
 
 // `dir` is the way the mouth faces; the sprite is drawn facing up
-fn spawn_teeth_at(commands: &mut Commands, images: &TeethImages, pos: Vec2, dir: Vec2) {
+fn spawn_flytrap_at(commands: &mut Commands, images: &FlytrapImages, pos: Vec2, dir: Vec2) {
     let rotation = Quat::from_rotation_z(dir.to_angle() - FRAC_PI_2);
-    // Hitboxes don't rotate, so swap width and height when sideways
     let hitbox = if dir.x != 0. {
-        Vec2::new(TEETH_SIZE.y, TEETH_SIZE.x)
+        Vec2::new(FLYTRAP_SIZE.y, FLYTRAP_SIZE.x)
     } else {
-        TEETH_SIZE
+        FLYTRAP_SIZE
     };
 
     commands.spawn((
         Sprite {
-            image: images.teeth.clone(),
-            custom_size: Some(TEETH_DRAW_SIZE),
+            image: images.flytrap.clone(),
+            custom_size: Some(FLYTRAP_DRAW_SIZE),
             ..default()
         },
         Transform::from_translation(pos.extend(2.)).with_rotation(rotation),
-        Teeth {
+        Flytrap {
             fire_timer: Timer::from_seconds(FIRE_INTERVAL, TimerMode::Repeating),
             dir,
         },
         // Can't be shot or stomped, but hurts on contact
-        STRAIGHT_TEETH.bundle(),
+        STRAIGHT_FLYTRAP.bundle(),
         Invulnerable,
         Hitbox(hitbox),
         HitCooldown::default(),
     ));
 }
 
-fn teeth_shoot(
+fn flytrap_shoot(
     mut commands: Commands,
     time: Res<Time>,
-    images: Res<TeethImages>,
-    mut teeth: Query<(&Transform, &mut Teeth)>,
+    images: Res<FlytrapImages>,
+    mut flytraps: Query<(&Transform, &mut Flytrap)>,
 ) {
-    for (tf, mut teeth) in &mut teeth {
-        if !teeth.fire_timer.tick(time.delta()).just_finished() {
+    for (tf, mut flytrap) in &mut flytraps {
+        if !flytrap.fire_timer.tick(time.delta()).just_finished() {
             continue;
         }
 
         // Fire out of his mouth, whichever way it's facing
-        let mouth = tf.translation.truncate() + teeth.dir * TEETH_SIZE.y / 2.;
+        let mouth = tf.translation.truncate() + flytrap.dir * FLYTRAP_SIZE.y / 2.;
         commands.spawn((
             Sprite {
                 image: images.fireball.clone(),
@@ -172,7 +170,7 @@ fn teeth_shoot(
             },
             Transform::from_translation(mouth.extend(3.)),
             Fireball {
-                vel: teeth.dir * FIREBALL_SPEED,
+                vel: flytrap.dir * FIREBALL_SPEED,
             },
         ));
     }
@@ -190,7 +188,7 @@ fn move_fireballs(
         fireball.vel.y -= FIREBALL_GRAVITY * dt;
         tf.translation += (fireball.vel * dt).extend(0.);
 
-        // Flame trails behind it, so point the sprite (drawn flying up) along its velocity
+        // Flame trails behind it, so point the sprite along its velocity
         if fireball.vel.length_squared() > 1. {
             tf.rotation = Quat::from_rotation_z(fireball.vel.to_angle() - FRAC_PI_2);
         }

@@ -12,7 +12,7 @@ use crate::{
     player::PLAYER_SIZE,
     proc_gen::{
         dungeon_generation::{DungeonLayout, generate_dungeon},
-        enemy_placement::{EnemySpawns, place_enemies},
+        enemy_placement::{EnemySpawns, place_enemies, place_orbs},
         room_generation::{DungeonSpecs, LEVEL_TWO, RoomMap, RoomPreview, TileType},
     },
 };
@@ -63,9 +63,9 @@ pub struct ActiveLevel {
     pub spawn: Vec2,
     pub bounds_min: Vec2,
     pub bounds_max: Vec2,
-    // Where to spawn enemies on a procedural map (empty for the intro level)
     pub enemies: EnemySpawns,
     pub lamps: Vec<Vec2>,
+    pub orbs: Vec<Vec2>,
 }
 
 pub struct LevelPlugin;
@@ -285,8 +285,7 @@ fn setup_level(
     spawn_tile(&mut commands, &brick_image, t);
 }
 
-// True if any of the 8 tiles around (x, y) is open. Off the map counts as solid.
-// Diagonals matter: an entity's box can clip a wall's corner from a diagonal tile.
+// True if any of the 8 tiles around (x, y) is open. 
 fn touches_open_space(map: &RoomMap, x: usize, y: usize) -> bool {
     (-1..=1).any(|dy: i32| {
         (-1..=1).any(|dx: i32| {
@@ -327,6 +326,7 @@ impl Default for ActiveLevel {
             bounds_max: Vec2::new(LEVEL_RIGHT, LEVEL_TOP),
             enemies: EnemySpawns::default(),
             lamps: vec![Vec2::new(4. * TILE_SIZE, LEVEL_BOTTOM + TILE_SIZE + 16.)],
+            orbs: Vec::new(),
         }
     }
 }
@@ -375,8 +375,8 @@ impl ActiveLevel {
             Some(start_room), settings.seed,
         );
         info!(
-            "Placed {} teeth and {} geralds",
-            enemies.teeth.len(),
+            "Placed {} flytraps and {} geralds",
+            enemies.flytraps.len(),
             enemies.geralds.len()
         );
         let lamps: Vec<Vec2> = map
@@ -392,6 +392,10 @@ impl ActiveLevel {
                 Vec2::new((x as f32 + 0.5) * TILE_SIZE, (y as f32 + 0.5) * TILE_SIZE)
             })
             .collect();
+        let orbs = place_orbs(&map, Some(start_room), settings.seed)
+            .into_iter()
+            .map(|t| Vec2::new((t.x as f32 + 0.5) * TILE_SIZE, (t.y as f32 + 1.) * TILE_SIZE))
+            .collect();
         Self {
             spawn: Vec2::new(
                 (spawn_x as f32 + 0.5) * TILE_SIZE,
@@ -402,7 +406,23 @@ impl ActiveLevel {
             map: Some(map),
             enemies,
             lamps,
+            orbs,
         }
+    }
+}
+
+impl ActiveLevel {
+    // Level 2 only: put hives in a few rooms 
+    pub fn add_hives(&mut self, seed: u64) {
+        let Some(map) = &self.map else {
+            return;
+        };
+        let spawn = (self.spawn / TILE_SIZE).floor();
+        let start_room = map.rooms.iter().position(|r| {
+            let (x, y) = (spawn.x as f64, spawn.y as f64);
+            x >= r.x && x < r.x + r.width && y >= r.y && y < r.y + r.height
+        });
+        self.enemies.place_hives(map, start_room, seed);
     }
 }
 

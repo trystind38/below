@@ -21,9 +21,10 @@ mod shining_road;
 mod sound;
 mod stats;
 mod tank_light;
-mod teeth;
+mod flytrap;
 mod ambience;
 mod lamp;
+mod orb;
 mod boss_level;
 mod level_progress;
 mod proc_gen {
@@ -113,7 +114,7 @@ fn main() {
         ))
         .add_plugins((
             tank_light::TankLightPlugin,
-            teeth::TeethPlugin,
+            flytrap::FlytrapPlugin,
             amoog::AmoogPlugin,
             lighting::LightingPlugin,
             burst_meter::BurstMeterPlugin,
@@ -121,6 +122,7 @@ fn main() {
             forcefield::ForceFieldPlugin,
             shining_road::ShiningRoadPlugin,
             lamp::LampPlugin,
+            orb::OrbPlugin,
             proc_gen::terrain_features::TerrainFeaturesPlugin,
             pathfinding::astar_demo::AStarDemoPlugin,
             ambience::AmbiencePlugin,

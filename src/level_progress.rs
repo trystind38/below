@@ -48,7 +48,14 @@ impl LevelId {
         match self {
             LevelId::Demo => ActiveLevel::default(),
             LevelId::One => ActiveLevel::procedural(LEVEL_ONE),
-            LevelId::Two => ActiveLevel::procedural(LEVEL_TWO),
+            LevelId::Two => {
+                // Same layout rules as Level 1, but Amoogs instead of Geralds,
+                // and the odd room is taken over by a hive
+                let mut level = ActiveLevel::procedural(LEVEL_TWO);
+                level.enemies.swap_geralds_for_amoogs();
+                level.add_hives(LEVEL_TWO.seed);
+                level
+            }
             LevelId::Boss => boss_level(),
         }
     }
