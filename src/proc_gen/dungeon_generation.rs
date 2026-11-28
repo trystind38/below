@@ -4,7 +4,7 @@ use crate::proc_gen::{
     hallway_gen::{HorzHallway, VertHallway, carve_hallways},
     mst::minimum_spanning_tree,
     platform_gen::{Platform, generate_platforms},
-    room_generation::{RoomMap, map_rooms},
+    room_generation::{DungeonSpecs, RoomMap, map_rooms},
     triangulation_generation::triangulate,
 };
 use rand::{Rng, SeedableRng, rngs::StdRng};
@@ -20,9 +20,9 @@ pub struct DungeonLayout {
     pub platforms: Vec<Platform>,
 }
 
-pub fn generate_dungeon(seed: u64) -> DungeonLayout {
-    // Generate the rooms
-    let mut map = map_rooms(seed);
+pub fn generate_dungeon(settings: DungeonSpecs) -> DungeonLayout {
+    let seed = settings.seed;
+    let mut map = map_rooms(settings);
 
     // Get the center all rooms
     let points: Vec<Point> = map
