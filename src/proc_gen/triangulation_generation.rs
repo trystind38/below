@@ -105,7 +105,7 @@ fn setup_triangulation_preview(
     seed: Res<ProcGenSeed>,
 ) {
     //Getting room centers to then traingulate
-    let map = map_rooms(seed.0);
+    let map = map_rooms(seed.specs());
     map_preview(&map, &mut commands, &wall_image.0);
 
     //I want points not rooms, so i'm turning rooms into points

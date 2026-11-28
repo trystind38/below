@@ -8,6 +8,7 @@ use crate::{
     loading::despawn_with,
     level::ActiveLevel,
     level_progress::{CurrentLevel, LevelId, start_level},
+    proc_gen::room_generation::{DungeonSpecs, LEVEL_ONE, LEVEL_TWO},
 };
 
 #[derive(Component)]
@@ -83,6 +84,10 @@ impl Plugin for MenuPlugin {
             (despawn_with::<MenuUi>,
             despawn_with::<SlideImage>,).chain(),
         )
+        .add_systems(OnEnter(GameState::PreviewLevelOne), setup_room_controls)
+        .add_systems(OnEnter(GameState::PreviewLevelTwo), setup_room_controls)
+        .add_systems(OnExit(GameState::PreviewLevelOne), despawn_with::<MenuUi>)
+        .add_systems(OnExit(GameState::PreviewLevelTwo), despawn_with::<MenuUi>)
         .add_systems(Update, (escape_navigation, next_slide.run_if(in_state(GameState::AISlideshow))));
     }
 }
@@ -137,7 +142,10 @@ fn setup_main_menu(
                  mut current: ResMut<CurrentLevel>,
                  mut next_state: ResMut<NextState<GameState>>| {
                     *active =
-                        ActiveLevel::procedural(rand::random::<u64>());
+                        ActiveLevel::procedural(DungeonSpecs {
+                            seed: rand::random::<u64>(),
+                            ..LEVEL_ONE
+                        });
                     // A random dungeon counts as Level 1, so its door leads on to Level 2
                     current.0 = LevelId::One;
 
@@ -154,6 +162,8 @@ fn setup_proc_gen_menu(mut commands: Commands) {
         "Procedural Generation",
         &[],
         &[
+            ("Preview Level 1", GameState::PreviewLevelOne),
+            ("Preview Level 2", GameState::PreviewLevelTwo),
             ("Room Generation", GameState::RoomGeneration),
             ("Delaunay Triangulation", GameState::Triangulation),
             ("MST", GameState::Mst),
@@ -340,7 +350,9 @@ fn escape_navigation(
             GameState::MainMenu
         }
 
-        GameState::RoomGeneration
+        GameState::PreviewLevelOne
+        | GameState::PreviewLevelTwo
+        | GameState::RoomGeneration
         | GameState::Triangulation
         | GameState::Mst => GameState::ProcGenMenu,
 

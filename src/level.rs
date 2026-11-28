@@ -1,8 +1,10 @@
 use bevy::prelude::*;
+use rand::{Rng, SeedableRng, rngs::StdRng};
 
 use crate::{
     GameState, LEVEL_H, LEVEL_LEN, TILE_SIZE, WIN_H, WIN_W,
     loading::{LoadingAssets, despawn_with},
+    level_progress::{CurrentLevel, LevelId},
 };
 
 use crate::{
@@ -11,7 +13,7 @@ use crate::{
     proc_gen::{
         dungeon_generation::{DungeonLayout, generate_dungeon},
         enemy_placement::{EnemySpawns, place_enemies, place_orbs},
-        room_generation::{RoomMap, TileType},
+        room_generation::{DungeonSpecs, LEVEL_TWO, RoomMap, RoomPreview, TileType},
     },
 };
 
@@ -29,6 +31,31 @@ pub struct BuriedTile;
 pub struct BackgroundImage(Handle<Image>);
 #[derive(Resource)]
 pub struct BrickImage(Handle<Image>);
+
+#[derive(Resource)]
+pub struct LevelTwoArt {
+    mossy: Handle<Image>,
+    mineral: Handle<Image>,
+}
+
+pub const LEVEL_TWO_BACKGROUND: Color = Color::srgb(0.13, 0.21, 0.16);
+
+impl LevelTwoArt {
+    pub fn wall_sprite(&self, has_mineral: bool) -> Sprite {
+        let (image, color) = if has_mineral {
+            (self.mineral.clone(), Color::srgb_u8(170, 184, 174))
+        } else {
+            (self.mossy.clone(), Color::WHITE)
+        };
+
+        Sprite {
+            image,
+            color,
+            custom_size: Some(Vec2::splat(TILE_SIZE)),
+            ..default()
+        }
+    }
+}
 
 #[derive(Resource)]
 pub struct ActiveLevel {
@@ -71,21 +98,72 @@ fn load_level(
     loading_assets.0.push(brick_image_handle.clone().untyped());
 
     commands.insert_resource(BrickImage(brick_image_handle));
+        let mossy: Handle<Image> = asset_server.load("tiles/rocky_stone_mossy_16x16.png");
+    let mineral: Handle<Image> = asset_server.load("tiles/rocky_stone_colorable_16x16.png");
+
+    loading_assets.0.push(mossy.clone().untyped());
+    loading_assets.0.push(mineral.clone().untyped());
+
+    commands.insert_resource(LevelTwoArt { mossy, mineral });
 }
+
+pub fn place_minerals(map: &RoomMap, seed: u64) -> Vec<bool> {
+    let mut minerals = vec![false; map.tiles.len()];
+    let mut rng = StdRng::seed_from_u64(seed);
+
+    for y in 1..map.height.saturating_sub(1) {
+        for x in 0..map.width.saturating_sub(2) {
+            let start = y * map.width + x;
+            let next = start + 1;
+
+            if minerals[start] || minerals[next]
+                || !matches!(map.tiles[start], TileType::Wall)
+                || !matches!(map.tiles[next], TileType::Wall)
+            {
+                continue;
+            }
+
+            if rng.gen_bool(0.02) {
+                minerals[start] = true;
+                minerals[next] = true;
+
+                if rng.gen_bool(0.5) {
+                    let end_y = if rng.gen_bool(0.5) { y + 1 } else { y - 1 };
+                    let end = end_y * map.width + x + 2;
+
+                    if matches!(map.tiles[end], TileType::Wall) {
+                        minerals[end] = true;
+                    }
+                }
+            }
+        }
+    }
+    minerals
+}
+
 
 fn setup_level(
     mut commands: Commands,
     background_image: Res<BackgroundImage>,
     brick_image: Res<BrickImage>,
     active: Res<ActiveLevel>,
+    level_two_art: Res<LevelTwoArt>,
+    current_level: Res<CurrentLevel>,
 ) {
     if let Some(map) = &active.map {
         let size = active.bounds_max - active.bounds_min;
         let center = (active.bounds_min + active.bounds_max) / 2.;
 
+        let is_level_two = current_level.0 == LevelId::Two;
+        let (background, minerals) = if is_level_two {
+            (LEVEL_TWO_BACKGROUND, place_minerals(map, LEVEL_TWO.seed))
+        } else {
+            (Color::srgb(0.15, 0.20, 0.25), Vec::new())
+        };
+
         commands.spawn((
             Sprite {
-                color: Color::srgb(0.15, 0.20, 0.25),
+                color: background,
                 custom_size: Some(size),
                 ..default()
             },
@@ -95,27 +173,34 @@ fn setup_level(
 
         for y in 0..map.height {
             for x in 0..map.width {
-                if !matches!(map.tiles[y * map.width + x], TileType::Wall) {
+                let index = y * map.width + x;
+                if !matches!(map.tiles[index], TileType::Wall) {
                     continue;
                 }
+
                 let translation = Vec3::new(
                     (x as f32 + 0.5) * TILE_SIZE,
                     (y as f32 + 0.5) * TILE_SIZE,
                     1.,
                 );
 
-                if touches_open_space(map, x, y) {
-                    spawn_tile(&mut commands, &brick_image, translation);
+                let sprite = if is_level_two {
+                    level_two_art.wall_sprite(minerals[index])
                 } else {
-                    commands.spawn((
-                        Sprite {
-                            image: brick_image.0.clone(),
-                            custom_size: Some(Vec2::splat(TILE_SIZE)),
-                            ..default()
-                        },
-                        Transform::from_translation(translation),
-                        BuriedTile,
-                    ));
+                    Sprite {
+                        image: brick_image.0.clone(),
+                        custom_size: Some(Vec2::splat(TILE_SIZE)),
+                        ..default()
+                    }
+                };
+
+                let mut tile = commands.spawn((sprite, Transform::from_translation(translation)));
+
+                // Only exposed walls need collision.
+                if touches_open_space(map, x, y) {
+                    tile.insert(Brick);
+                } else {
+                    tile.insert(BuriedTile);
                 }
             }
         }
@@ -247,14 +332,13 @@ impl Default for ActiveLevel {
 }
 
 impl ActiveLevel {
-    pub fn procedural(seed: u64) -> Self {
+    pub fn procedural(settings: DungeonSpecs) -> Self {
         let DungeonLayout {
             mut map,
             vert_hallways,
             horz_hallways,
             ..
-        } = generate_dungeon(seed);
-        info!("Playable dungeon seed: {seed}");
+        } = generate_dungeon(settings);
 
         // Choose the room nearest the map's upper-left corner.
         let (start_room, room) = map
@@ -285,7 +369,11 @@ impl ActiveLevel {
         let bounds_max = Vec2::new(map.width as f32 * TILE_SIZE, map.height as f32 * TILE_SIZE);
 
         // After the landing pad so enemies see the final tiles; the start room stays empty
-        let enemies = place_enemies(&map, &horz_hallways, &vert_hallways, Some(start_room), seed);
+        let enemies = place_enemies(
+            &map, 
+            &horz_hallways, &vert_hallways, 
+            Some(start_room), settings.seed,
+        );
         info!(
             "Placed {} flytraps and {} geralds",
             enemies.flytraps.len(),
@@ -304,7 +392,7 @@ impl ActiveLevel {
                 Vec2::new((x as f32 + 0.5) * TILE_SIZE, (y as f32 + 0.5) * TILE_SIZE)
             })
             .collect();
-        let orbs = place_orbs(&map, Some(start_room), seed)
+        let orbs = place_orbs(&map, Some(start_room), settings.seed)
             .into_iter()
             .map(|t| Vec2::new((t.x as f32 + 0.5) * TILE_SIZE, (t.y as f32 + 1.) * TILE_SIZE))
             .collect();
